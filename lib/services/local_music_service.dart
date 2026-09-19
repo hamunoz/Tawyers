@@ -8,11 +8,13 @@
  */
 
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/logger_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 final LocalMusicService localMusicService = LocalMusicService();
 
@@ -58,8 +60,30 @@ class LocalMusicService {
     }
   }
 
+  Future<bool> _requestStoragePermissions() async {
+    if (kIsWeb) return true;
+    if (Platform.isAndroid) {
+      try {
+        debugPrint('📂 [LOCAL_MUSIC] Solicitando permisos de almacenamiento a Android OS...');
+        final audioStatus = await Permission.audio.request();
+        if (audioStatus.isGranted) return true;
+
+        final storageStatus = await Permission.storage.request();
+        if (storageStatus.isGranted) return true;
+
+        final manageStatus = await Permission.manageExternalStorage.request();
+        if (manageStatus.isGranted) return true;
+      } catch (e) {
+        debugPrint('⚠️ [LOCAL_MUSIC] Advertencia solicitando permisos: $e');
+      }
+    }
+    return true;
+  }
+
   Future<String?> pickAndScanFolder() async {
     try {
+      await _requestStoragePermissions();
+
       final selectedDirectory = await FilePicker.getDirectoryPath();
       if (selectedDirectory != null && selectedDirectory.isNotEmpty) {
         final box = await Hive.openBox('settings');
@@ -96,6 +120,8 @@ class LocalMusicService {
 
   Future<void> scanLocalMusicFolder(String folderPath) async {
     try {
+      await _requestStoragePermissions();
+
       final realPath = _normalizeFolderPath(folderPath);
       debugPrint('📂 [LOCAL_MUSIC] Normalizada ruta SAF: "$folderPath" -> "$realPath"');
 

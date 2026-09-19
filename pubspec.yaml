@@ -33,6 +33,7 @@ dependencies:
   just_audio: ^0.10.6
   material_ui: ^1.2.0
   path_provider: ^2.1.6
+  permission_handler: ^11.3.1
   receive_sharing_intent:
     path: ./packages/receive_sharing_intent
   rxdart: ^0.28.0

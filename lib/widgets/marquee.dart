@@ -5,18 +5,6 @@
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
- *
- *     Musify is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- *
- *     For more information about Musify, including how to contribute,
- *     please visit: https://github.com/gokadzev/Musify
  */
 
 import 'package:material_ui/material_ui.dart';
@@ -26,9 +14,9 @@ class MarqueeWidget extends StatefulWidget {
     super.key,
     required this.child,
     this.direction = Axis.horizontal,
-    this.animationDuration = const Duration(milliseconds: 6000),
-    this.backDuration = const Duration(milliseconds: 800),
-    this.pauseDuration = const Duration(milliseconds: 800),
+    this.animationDuration = const Duration(seconds: 12),
+    this.backDuration = const Duration(seconds: 5),
+    this.pauseDuration = const Duration(seconds: 3),
     this.manualScrollEnabled = true,
   });
 
@@ -86,7 +74,6 @@ class _MarqueeWidgetState extends State<MarqueeWidget>
 
     while (_scrollController.hasClients && !_isDisposed) {
       try {
-        // Check if content actually needs scrolling
         if (_scrollController.position.maxScrollExtent <= 0) {
           await Future.delayed(const Duration(seconds: 1));
           continue;
@@ -107,10 +94,9 @@ class _MarqueeWidgetState extends State<MarqueeWidget>
         await _scrollController.animateTo(
           0,
           duration: widget.backDuration,
-          curve: Curves.easeOut,
+          curve: Curves.easeInOut,
         );
       } catch (e) {
-        // Handle animation interruptions gracefully
         break;
       }
     }
