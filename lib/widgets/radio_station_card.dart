@@ -22,11 +22,13 @@ class RadioStationCard extends StatefulWidget {
     required this.station,
     required this.onPressed,
     this.onFavoritesChanged,
+    this.onRemove,
   });
 
   final RadioStation station;
   final VoidCallback onPressed;
   final VoidCallback? onFavoritesChanged;
+  final VoidCallback? onRemove;
 
   @override
   State<RadioStationCard> createState() => _RadioStationCardState();
@@ -180,6 +182,15 @@ class _RadioStationCardState extends State<RadioStationCard> {
                   color: colorScheme.primary,
                 ),
               ),
+              if (widget.onRemove != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(FluentIcons.delete_24_regular, size: 20),
+                  color: colorScheme.error,
+                  onPressed: widget.onRemove,
+                  tooltip: 'Eliminar de la lista',
+                ),
+              ],
             ],
           ),
         ),

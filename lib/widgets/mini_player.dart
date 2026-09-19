@@ -29,6 +29,7 @@ import 'package:musify/models/full_player_state.dart';
 import 'package:musify/models/position_data.dart';
 import 'package:musify/screens/now_playing_page.dart';
 import 'package:musify/services/common_services.dart';
+import 'package:musify/services/playlists_manager.dart';
 import 'package:musify/utilities/mediaitem.dart';
 import 'package:musify/utilities/playlist_dialogs.dart';
 import 'package:musify/widgets/marquee.dart';
@@ -403,7 +404,9 @@ class _FavoriteButton extends StatefulWidget {
 }
 
 class _FavoriteButtonState extends State<_FavoriteButton> {
-  late ValueNotifier<bool> _isLiked;
+  late final ValueNotifier<bool> _isLiked = ValueNotifier<bool>(
+    isItemSavedInLibrary(audioId),
+  );
 
   String get audioId => widget.metadata.extras?['ytid']?.toString() ?? widget.metadata.id;
   bool get isRadio => widget.metadata.extras?['isLive'] == true || audioId.contains(':');
@@ -411,21 +414,14 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
   @override
   void initState() {
     super.initState();
-    _initListener();
-  }
-
-  void _initListener() {
-    if (isRadio) {
-      _isLiked = ValueNotifier<bool>(isRadioStationLiked(audioId));
-      userLikedRadioStations.addListener(_syncStatus);
-    } else {
-      _isLiked = ValueNotifier<bool>(isSongAlreadyLiked(audioId));
-      userLikedSongsList.addListener(_syncStatus);
-    }
+    userLikedSongsList.addListener(_syncStatus);
+    userLikedRadioStations.addListener(_syncStatus);
+    userCustomPlaylists.addListener(_syncStatus);
+    userPlaylistFolders.addListener(_syncStatus);
   }
 
   void _syncStatus() {
-    final newStatus = isRadio ? isRadioStationLiked(audioId) : isSongAlreadyLiked(audioId);
+    final newStatus = isItemSavedInLibrary(audioId);
     if (_isLiked.value != newStatus) {
       _isLiked.value = newStatus;
     }
@@ -441,11 +437,10 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
 
   @override
   void dispose() {
-    if (isRadio) {
-      userLikedRadioStations.removeListener(_syncStatus);
-    } else {
-      userLikedSongsList.removeListener(_syncStatus);
-    }
+    userLikedSongsList.removeListener(_syncStatus);
+    userLikedRadioStations.removeListener(_syncStatus);
+    userCustomPlaylists.removeListener(_syncStatus);
+    userPlaylistFolders.removeListener(_syncStatus);
     _isLiked.dispose();
     super.dispose();
   }

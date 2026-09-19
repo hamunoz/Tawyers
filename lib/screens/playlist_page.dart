@@ -724,6 +724,11 @@ class _PlaylistPageState extends State<PlaylistPage> {
         padding: const EdgeInsets.only(bottom: 8),
         child: RadioStationCard(
           station: station,
+          onRemove: isRemovable ? () {
+            if (removeSongFromPlaylist(_playlist, song, removeOneAtIndex: index)) {
+              _updateSongsListOnRemove(index, song);
+            }
+          } : null,
           onPressed: () async {
             final resolvedInfo = await pluginManager.getStreamUrlForStation(
               station.id,
