@@ -36,6 +36,7 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 - [x] **Arranque ultra-rápido (<0.2s)**: La app abre en la Librería/Modo Local sin esperar respuestas de red.
 - [x] **`LocalMusicService` (`lib/services/local_music_service.dart`)**:
   - Guardado de carpeta local en **Ajustes > Carpeta de Música Local** y escaneo recursivo de audio (`.mp3`, `.m4a`, `.flac`, `.wav`, `.aac`, `.ogg`, `.webm`, etc.) con solicitud de permisos nativos Android 11+ (`permission_handler`).
+  - Limpieza automática de guiones bajos (`_`) por espacios en los nombres de archivos.
 - [x] **Home con Píldoras / Tabs**:
   - Píldoras en la parte superior (`Offline`, `YouTube`, e íconos de plugins activos) con renderizado de contenido según la pestaña seleccionada.
 - [x] **Buscador Inteligente Multi-Fuente (`SearchPage`)**:
@@ -107,6 +108,11 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 - [ ] **Letras Sincronizadas (LRC) en Vivo para Radios**:
   - Al extraer el título y artista del `StreamTitle` de la radio en tiempo real (ej. *"Dua Lipa - Levitating"*), consultar automáticamente `LyricsManager` / LRCLIB para mostrar las letras sincronizadas en vivo de la canción que está sonando en la emisora.
 
-### 3.4 Respaldo y Persistencia
+### 3.4 Extracción de Metadatos ID3 para Archivos de Música Local
+- [ ] **Lectura de Etiquetas ID3v2 / MP4 / FLAC en Archivos Locales**:
+  - Extraer automáticamente el **Título real**, **Artista/Cantante**, **Álbum** y **Duración exacta** de cada archivo MP3/M4A/FLAC/WEBM.
+  - Extraer y renderizar la **Carátula/Cover oficial incrustada** dentro del archivo de audio para mostrarla en las tarjetas, MiniPlayer y pantalla Now Playing.
+
+### 3.5 Respaldo y Persistencia
 - [ ] **Respaldo Automático en Nube (Google Drive)**:
   - Sincronización transparente de `user.hive` en Google Drive.
