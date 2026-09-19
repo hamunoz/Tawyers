@@ -152,7 +152,12 @@ class PluginManager {
 
   Future<Map<String, dynamic>> getStreamUrlForStation(String stationId, String rawUrl) async {
     await init();
-    final targetUrl = rawUrl.replaceAll(RegExp('^(tunein|iheartradio|iptv_audio|radio_browser|rb|iheart|iptv):'), '');
+    var targetUrl = rawUrl.replaceAll(RegExp('^(tunein|iheartradio|iptv_audio|radio_browser|rb|iheart|iptv):'), '');
+
+    // Si es iHeartRadio y el targetUrl es un ID numérico o no empieza por http, construimos la URL de la API liveStations
+    if ((stationId.startsWith('iheart') || rawUrl.contains('iheart')) && !targetUrl.startsWith('http')) {
+      targetUrl = 'https://api.iheart.com/api/v2/content/liveStations/$targetUrl';
+    }
 
     if (targetUrl.contains('liveStations/') || targetUrl.contains('Tune.ashx') || targetUrl.contains('.pls') || targetUrl.contains('.m3u')) {
       try {
