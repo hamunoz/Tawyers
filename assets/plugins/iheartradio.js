@@ -2,6 +2,7 @@
  * Plugin: iHeartRadio
  * ID: iheartradio
  * Type: radio
+ * Translated from TestExtensionIHR.kt
  */
 
 const plugin = {
@@ -19,7 +20,7 @@ const plugin = {
   },
 
   getSearchUrl(query) {
-    return 'https://api.iheart.com/api/v1/catalog/searchAll?keywords=' + encodeURIComponent(query) + '&maxRows=20';
+    return 'https://api.iheart.com/api/v1/catalog/searchAll?keywords=' + encodeURIComponent(query) + '&maxRows=25';
   },
 
   extractBestStream(streams) {
@@ -48,13 +49,14 @@ const plugin = {
 
         var streamUrl = this.extractBestStream(item.streams);
         if (!streamUrl && item.streamUrl) streamUrl = item.streamUrl;
+        if (!streamUrl && item.id) streamUrl = 'https://api.iheart.com/api/v2/content/liveStations/' + item.id;
         if (!streamUrl) continue;
 
         results.push({
           id: 'iheartradio:' + (item.id || i),
           title: item.name || item.callLetters || 'Emisora iHeartRadio',
           artist: item.description || 'iHeartRadio Live',
-          image: item.logo || '',
+          image: item.logo || item.newlogo || '',
           streamUrl: streamUrl,
           genre: 'Radio Live',
           type: 'radio'
@@ -68,7 +70,35 @@ const plugin = {
   },
 
   parseSearchResults(jsonText, query) {
-    return this.parseRadioStations(jsonText);
+    try {
+      var data = JSON.parse(jsonText);
+      var stations = data.stations || data.hits || [];
+      var results = [];
+
+      for (var i = 0; i < stations.length; i++) {
+        var item = stations[i];
+        if (!item || !item.id) continue;
+
+        var streamUrl = this.extractBestStream(item.streams);
+        if (!streamUrl) {
+          streamUrl = 'https://api.iheart.com/api/v2/content/liveStations/' + item.id;
+        }
+
+        results.push({
+          id: 'iheartradio:' + item.id,
+          title: item.name || item.callLetters || 'Emisora iHeartRadio',
+          artist: item.description || 'iHeartRadio Live',
+          image: item.logo || item.newlogo || '',
+          streamUrl: streamUrl,
+          genre: 'Radio Live',
+          type: 'radio'
+        });
+      }
+
+      return results;
+    } catch (e) {
+      return [];
+    }
   },
 
   getStreamUrl(rawUrl) {
@@ -76,7 +106,7 @@ const plugin = {
     return {
       url: url,
       headers: {
-        'User-Agent': 'Musify/10.4.0'
+        'User-Agent': 'okhttp/4.12.0'
       }
     };
   }

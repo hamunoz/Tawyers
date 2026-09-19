@@ -254,19 +254,31 @@ String addSongInCustomPlaylist(
   final isFromFolder = found?.isFromFolder ?? false;
 
   if (customPlaylist != null) {
+    final songMap = Map<String, dynamic>.from(song);
+    final songId = songMap['ytid']?.toString() ?? songMap['id']?.toString() ?? '';
+    songMap['ytid'] = songId;
+    songMap['id'] = songId;
+    if (songMap['title'] == null && songMap['name'] != null) {
+      songMap['title'] = songMap['name'];
+    }
+
     final List<dynamic> playlistSongs = customPlaylist['list'];
-    if (playlistSongs.any(
-      (playlistElement) => playlistElement['ytid'] == song['ytid'],
-    )) {
+    if (songId.isNotEmpty &&
+        playlistSongs.any(
+          (e) => (e['ytid']?.toString() == songId) || (e['id']?.toString() == songId),
+        )) {
       return context.l10n!.songAlreadyInPlaylist;
     }
+
     if (indexToInsert != null) {
       final safeIndex = indexToInsert.clamp(0, playlistSongs.length);
-      playlistSongs.insert(safeIndex, song);
+      playlistSongs.insert(safeIndex, songMap);
     } else {
-      playlistSongs.add(song);
+      playlistSongs.add(songMap);
     }
+
     if (isFromFolder) {
+      userPlaylistFolders.value = List<Map>.from(userPlaylistFolders.value);
       unawaited(
         addOrUpdateData<List>(
           'user',
@@ -275,6 +287,7 @@ String addSongInCustomPlaylist(
         ),
       );
     } else {
+      userCustomPlaylists.value = List<Map>.from(userCustomPlaylists.value);
       unawaited(
         addOrUpdateData<List>(
           'user',
