@@ -49,6 +49,8 @@ class LocalMusicService {
 
       if (savedFolder.isNotEmpty) {
         await scanLocalMusicFolder(savedFolder);
+      } else {
+        await _scanDefaultPublicFolders();
       }
       _initialized = true;
     } catch (e) {
@@ -73,15 +75,41 @@ class LocalMusicService {
     return null;
   }
 
+  String _normalizeFolderPath(String path) {
+    if (path.isEmpty) return '/storage/emulated/0/Music';
+
+    final decoded = Uri.decodeFull(path);
+    if (decoded.contains('primary:') || decoded.contains('primary%3A')) {
+      final idx = decoded.indexOf('primary:');
+      final sub = idx != -1
+          ? decoded.substring(idx + 8)
+          : decoded.substring(decoded.indexOf('primary%3A') + 10);
+      return '/storage/emulated/0/${sub.replaceAll('%2F', '/')}';
+    }
+
+    if (decoded.startsWith('content://')) {
+      return '/storage/emulated/0/Music';
+    }
+
+    return decoded;
+  }
+
   Future<void> scanLocalMusicFolder(String folderPath) async {
     try {
-      final directory = Directory(folderPath);
-      if (!await directory.exists()) return;
+      final realPath = _normalizeFolderPath(folderPath);
+      debugPrint('📂 [LOCAL_MUSIC] Normalizada ruta SAF: "$folderPath" -> "$realPath"');
+
+      final directory = Directory(realPath);
+      if (!await directory.exists()) {
+        debugPrint('⚠️ [LOCAL_MUSIC] La carpeta no existe en disco: $realPath. Escaneando carpetas públicas...');
+        await _scanDefaultPublicFolders();
+        return;
+      }
 
       final localSongs = <Map<String, dynamic>>[];
 
       await for (final entity in directory.list(recursive: true, followLinks: false).handleError((e) {
-        _logger.log('Ignorando subcarpeta sin permisos en escaneo local: $e');
+        debugPrint('⚠️ [LOCAL_MUSIC] Ignorando subcarpeta restringida: $e');
       })) {
         if (entity is File) {
           final path = entity.path;
@@ -96,12 +124,14 @@ class LocalMusicService {
               'id': 'local_${path.hashCode}',
               'ytid': 'local_${path.hashCode}',
               'title': title,
+              'name': title,
               'artist': 'Música Local',
               'album': 'Archivos Locales',
               'image': '',
               'highResImage': '',
               'audioUrl': path,
               'audioPath': path,
+              'streamUrl': path,
               'isLocal': true,
               'isOffline': true,
               'duration': 0,
@@ -110,12 +140,72 @@ class LocalMusicService {
         }
       }
 
+      if (localSongs.isEmpty && realPath != '/storage/emulated/0/Music') {
+        await _scanDefaultPublicFolders();
+        return;
+      }
+
       userOfflineSongs.value = localSongs;
       final noBackupBox = await Hive.openBox('userNoBackup');
       await noBackupBox.put('offlineSongs', localSongs);
-      debugPrint('📂 [LOCAL_MUSIC] Escaneo completado: ${localSongs.length} archivos de audio encontrados en $folderPath');
+      debugPrint('📂 [LOCAL_MUSIC] Escaneo completado: ${localSongs.length} archivos de audio encontrados en $realPath');
     } catch (e) {
       _logger.log('Error escaneando carpeta local $folderPath', error: e);
+      await _scanDefaultPublicFolders();
     }
+  }
+
+  Future<void> _scanDefaultPublicFolders() async {
+    final candidateFolders = [
+      '/storage/emulated/0/Music',
+      '/storage/emulated/0/Download',
+      '/storage/emulated/0/Audio',
+      '/sdcard/Music',
+      '/sdcard/Download',
+    ];
+
+    final localSongs = <Map<String, dynamic>>[];
+
+    for (final folderPath in candidateFolders) {
+      try {
+        final dir = Directory(folderPath);
+        if (await dir.exists()) {
+          await for (final entity in dir.list(recursive: true, followLinks: false).handleError((_) {})) {
+            if (entity is File) {
+              final path = entity.path;
+              final lowerPath = path.toLowerCase();
+              if (_supportedExtensions.any(lowerPath.endsWith)) {
+                final fileName = path.split('/').last;
+                final title = fileName.contains('.')
+                    ? fileName.substring(0, fileName.lastIndexOf('.'))
+                    : fileName;
+
+                localSongs.add({
+                  'id': 'local_${path.hashCode}',
+                  'ytid': 'local_${path.hashCode}',
+                  'title': title,
+                  'name': title,
+                  'artist': 'Música Local',
+                  'album': 'Archivos Locales',
+                  'image': '',
+                  'highResImage': '',
+                  'audioUrl': path,
+                  'audioPath': path,
+                  'streamUrl': path,
+                  'isLocal': true,
+                  'isOffline': true,
+                  'duration': 0,
+                });
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    userOfflineSongs.value = localSongs;
+    final noBackupBox = await Hive.openBox('userNoBackup');
+    await noBackupBox.put('offlineSongs', localSongs);
+    debugPrint('📂 [LOCAL_MUSIC] Escaneo público por defecto completado: ${localSongs.length} archivos encontrados');
   }
 }
