@@ -28,10 +28,16 @@ class LocalMusicService {
   final Set<String> _supportedExtensions = {
     '.mp3',
     '.m4a',
+    '.m4b',
+    '.m4v',
+    '.webm',
     '.flac',
     '.wav',
     '.aac',
     '.ogg',
+    '.opus',
+    '.mp4',
+    '.3gp',
   };
 
   Future<void> init() async {
@@ -73,9 +79,10 @@ class LocalMusicService {
       if (!await directory.exists()) return;
 
       final localSongs = <Map<String, dynamic>>[];
-      final entities = directory.listSync(recursive: true, followLinks: false);
 
-      for (final entity in entities) {
+      await for (final entity in directory.list(recursive: true, followLinks: false).handleError((e) {
+        _logger.log('Ignorando subcarpeta sin permisos en escaneo local: $e');
+      })) {
         if (entity is File) {
           final path = entity.path;
           final lowerPath = path.toLowerCase();
@@ -106,6 +113,7 @@ class LocalMusicService {
       userOfflineSongs.value = localSongs;
       final noBackupBox = await Hive.openBox('userNoBackup');
       await noBackupBox.put('offlineSongs', localSongs);
+      debugPrint('📂 [LOCAL_MUSIC] Escaneo completado: ${localSongs.length} archivos de audio encontrados en $folderPath');
     } catch (e) {
       _logger.log('Error escaneando carpeta local $folderPath', error: e);
     }

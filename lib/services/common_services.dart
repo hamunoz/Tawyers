@@ -515,6 +515,34 @@ bool isRadioStationLiked(String radioStationId) {
   return userLikedRadioStations.value.contains(radioStationId);
 }
 
+bool isItemSavedInLibrary(dynamic idToCheck) {
+  final id = idToCheck?.toString();
+  if (id == null || id.isEmpty) return false;
+
+  if (isSongAlreadyLiked(id) || isRadioStationLiked(id)) {
+    return true;
+  }
+
+  for (final playlist in userCustomPlaylists.value) {
+    final songs = playlist['list'] as List? ?? [];
+    if (songs.any((s) => s['ytid']?.toString() == id || s['id']?.toString() == id)) {
+      return true;
+    }
+  }
+
+  for (final folder in userPlaylistFolders.value) {
+    final playlists = folder['playlists'] as List? ?? [];
+    for (final playlist in playlists) {
+      final songs = playlist['list'] as List? ?? [];
+      if (songs.any((s) => s['ytid']?.toString() == id || s['id']?.toString() == id)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 Future<void> addRadioStationToLiked(String radioStationId, {Map? stationData}) async {
   if (!userLikedRadioStations.value.contains(radioStationId)) {
     final updatedList = List<String>.from(userLikedRadioStations.value)

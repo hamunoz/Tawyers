@@ -11,6 +11,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:musify/models/radio_model.dart';
 import 'package:musify/services/common_services.dart';
+import 'package:musify/services/playlists_manager.dart';
 import 'package:musify/utilities/artwork_provider.dart';
 import 'package:musify/utilities/playlist_dialogs.dart';
 import 'package:musify/widgets/shapes/eight_leaf_clover_shape.dart';
@@ -33,17 +34,19 @@ class RadioStationCard extends StatefulWidget {
 
 class _RadioStationCardState extends State<RadioStationCard> {
   late final ValueNotifier<bool> _isFavorited = ValueNotifier<bool>(
-    isRadioStationLiked(widget.station.id),
+    isItemSavedInLibrary(widget.station.id),
   );
 
   @override
   void initState() {
     super.initState();
     userLikedRadioStations.addListener(_onFavoritesUpdated);
+    userCustomPlaylists.addListener(_onFavoritesUpdated);
+    userPlaylistFolders.addListener(_onFavoritesUpdated);
   }
 
   void _onFavoritesUpdated() {
-    final newStatus = isRadioStationLiked(widget.station.id);
+    final newStatus = isItemSavedInLibrary(widget.station.id);
     if (_isFavorited.value != newStatus) {
       _isFavorited.value = newStatus;
     }
@@ -52,6 +55,8 @@ class _RadioStationCardState extends State<RadioStationCard> {
   @override
   void dispose() {
     userLikedRadioStations.removeListener(_onFavoritesUpdated);
+    userCustomPlaylists.removeListener(_onFavoritesUpdated);
+    userPlaylistFolders.removeListener(_onFavoritesUpdated);
     _isFavorited.dispose();
     super.dispose();
   }

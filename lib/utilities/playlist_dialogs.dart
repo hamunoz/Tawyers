@@ -348,7 +348,7 @@ void showAddToPlaylistDialog(
   dynamic song,
   List<dynamic>? songs,
 }) {
-  var selectedDestination = 'root'; // 'root' por defecto
+  String? selectedDestination; // Sin selección previa por defecto
 
   showDialog(
     context: context,
@@ -407,7 +407,7 @@ void showAddToPlaylistDialog(
                           color: colorScheme.primary,
                         ),
                         title: const Text(
-                          'Raíz de Librería (Liked Items)',
+                          'Liked Items (Raíz de Librería)',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         trailing: selectedDestination == 'root'
@@ -420,33 +420,57 @@ void showAddToPlaylistDialog(
                     ),
                     const SizedBox(height: 8),
 
-                    // Opción 2: Playlists existentes
-                    ...topLevelPlaylists.map((p) {
-                      final pId = p['ytid']?.toString() ?? '';
-                      final isSel = selectedDestination == pId;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Card(
-                          elevation: 0,
-                          color: isSel
-                              ? colorScheme.tertiaryContainer
-                              : colorScheme.surfaceContainerLow,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ListTile(
-                            leading: const Icon(FluentIcons.text_bullet_list_24_filled),
-                            title: Text(p['title'] ?? ''),
-                            trailing: isSel
-                                ? Icon(FluentIcons.checkmark_24_filled, color: colorScheme.tertiary)
-                                : null,
-                            onTap: () {
-                              dialogSetState(() => selectedDestination = pId);
-                            },
-                          ),
+                    // Opción 2: Playlists existentes del usuario
+                    if (topLevelPlaylists.isNotEmpty) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Tus Listas Creadas:',
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: colorScheme.outline,
+                              ),
                         ),
-                      );
-                    }),
+                      ),
+                      const SizedBox(height: 6),
+                      ...topLevelPlaylists.map((p) {
+                        final pId = p['ytid']?.toString() ?? '';
+                        final isSel = selectedDestination == pId;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Card(
+                            elevation: 0,
+                            color: isSel
+                                ? colorScheme.tertiaryContainer
+                                : colorScheme.surfaceContainerLow,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(
+                                color: isSel
+                                    ? colorScheme.tertiary
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: ListTile(
+                              leading: Icon(
+                                FluentIcons.text_bullet_list_24_filled,
+                                color: colorScheme.tertiary,
+                              ),
+                              title: Text(
+                                p['title'] ?? '',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              trailing: isSel
+                                  ? Icon(FluentIcons.checkmark_24_filled, color: colorScheme.tertiary)
+                                  : null,
+                              onTap: () {
+                                dialogSetState(() => selectedDestination = pId);
+                              },
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
 
                     // Opción 3: Botón para crear nueva playlist
                     const SizedBox(height: 8),
@@ -473,37 +497,39 @@ void showAddToPlaylistDialog(
                 child: Text(context.l10n!.cancel),
               ),
               FilledButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  if (selectedDestination == 'root') {
-                    if (song != null) {
-                      final songMap = song is Map ? Map<String, dynamic>.from(song) : {};
-                      final id = songMap['ytid']?.toString() ?? songMap['id']?.toString() ?? '';
-                      final isRadio = songMap['isLive'] == true || id.contains(':');
+                onPressed: selectedDestination == null
+                    ? null
+                    : () async {
+                        Navigator.pop(context);
+                        if (selectedDestination == 'root') {
+                          if (song != null) {
+                            final songMap = song is Map ? Map<String, dynamic>.from(song) : {};
+                            final id = songMap['ytid']?.toString() ?? songMap['id']?.toString() ?? '';
+                            final isRadio = songMap['isLive'] == true || id.contains(':');
 
-                      if (isRadio) {
-                        await addRadioStationToLiked(id, stationData: songMap);
-                      } else if (id.isNotEmpty) {
-                        await updateSongLikeStatus(id, true, songData: songMap);
-                      }
-                      if (context.mounted) {
-                        showToast(context, 'Guardado en Raíz de Librería (Liked Items)');
-                      }
-                    }
-                  } else {
-                    if (song != null) {
-                      showToast(
-                        context,
-                        addSongInCustomPlaylist(context, selectedDestination, song),
-                      );
-                    } else if (songs != null && songs.isNotEmpty) {
-                      showToast(
-                        context,
-                        addSongsInCustomPlaylist(context, selectedDestination, songs),
-                      );
-                    }
-                  }
-                },
+                            if (isRadio) {
+                              await addRadioStationToLiked(id, stationData: songMap);
+                            } else if (id.isNotEmpty) {
+                              await updateSongLikeStatus(id, true, songData: songMap);
+                            }
+                            if (context.mounted) {
+                              showToast(context, 'Guardado en Liked Items');
+                            }
+                          }
+                        } else {
+                          if (song != null) {
+                            showToast(
+                              context,
+                              addSongInCustomPlaylist(context, selectedDestination!, song),
+                            );
+                          } else if (songs != null && songs.isNotEmpty) {
+                            showToast(
+                              context,
+                              addSongsInCustomPlaylist(context, selectedDestination!, songs),
+                            );
+                          }
+                        }
+                      },
                 child: const Text('Aceptar'),
               ),
             ],

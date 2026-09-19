@@ -27,12 +27,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:musify/constants/app_constants.dart';
 import 'package:musify/extensions/l10n.dart';
 import 'package:musify/main.dart';
+import 'package:musify/models/radio_model.dart';
 import 'package:musify/services/artist_service.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/data_manager.dart';
 import 'package:musify/services/playlist_download_service.dart';
 import 'package:musify/services/playlist_sharing.dart';
 import 'package:musify/services/playlists_manager.dart';
+import 'package:musify/services/plugin_manager.dart';
 import 'package:musify/services/settings_manager.dart';
 import 'package:musify/utilities/app_utils.dart';
 import 'package:musify/utilities/async_loader.dart';
@@ -51,6 +53,7 @@ import 'package:musify/widgets/playlist_page/playlist_action_buttons.dart';
 import 'package:musify/widgets/playlist_page/playlist_header.dart';
 import 'package:musify/widgets/playlist_page/playlist_sliver_app_bar.dart';
 import 'package:musify/widgets/playlist_page/search_bar_section.dart';
+import 'package:musify/widgets/radio_station_card.dart';
 import 'package:musify/widgets/recommended_songs_section.dart';
 import 'package:musify/widgets/song_bar.dart';
 import 'package:musify/widgets/sort_chips.dart';
@@ -704,6 +707,42 @@ class _PlaylistPageState extends State<PlaylistPage> {
     bool isRemovable,
     List sourceList,
   ) {
+    final songMap = Map<String, dynamic>.from(song);
+    final songId = songMap['id']?.toString() ?? songMap['ytid']?.toString() ?? '';
+    final isStream = songMap['isLive'] == true || songId.contains(':');
+
+    if (isStream) {
+      final station = RadioStation(
+        id: songId,
+        name: songMap['title']?.toString() ?? songMap['name']?.toString() ?? 'Stream',
+        image: songMap['image']?.toString() ?? songMap['highResImage']?.toString() ?? '',
+        streamUrl: songMap['streamUrl']?.toString() ?? '',
+        genre: songMap['artist']?.toString() ?? songMap['genre']?.toString(),
+      );
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: RadioStationCard(
+          station: station,
+          onPressed: () async {
+            final resolvedInfo = await pluginManager.getStreamUrlForStation(
+              station.id,
+              station.streamUrl,
+            );
+            final finalUrl = resolvedInfo['url']?.toString() ?? station.streamUrl;
+
+            await audioHandler.playRadioStream(
+              id: station.id,
+              name: station.name,
+              streamUrl: finalUrl,
+              image: station.image,
+              genre: station.genre,
+            );
+          },
+        ),
+      );
+    }
+
     final totalItems = sourceList.length;
     final borderRadius = getItemBorderRadius(index, totalItems);
     final isUserCreatedPlaylist = _playlist?['source'] == 'user-created';

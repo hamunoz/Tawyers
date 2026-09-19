@@ -7,6 +7,7 @@
  *     (at your option) any later version.
  */
 
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -153,7 +154,7 @@ class PluginManager {
     await init();
     final targetUrl = rawUrl.replaceAll(RegExp('^(tunein|iheartradio|iptv_audio|radio_browser|rb|iheart|iptv):'), '');
 
-    if (targetUrl.contains('Tune.ashx') || targetUrl.contains('.pls') || targetUrl.contains('.m3u')) {
+    if (targetUrl.contains('liveStations/') || targetUrl.contains('Tune.ashx') || targetUrl.contains('.pls') || targetUrl.contains('.m3u')) {
       try {
         debugPrint('🔌 [PLUGIN_STREAM_RESOLVE] Resolviendo URL intermedia nativamente: $targetUrl');
         final response = await http.get(
@@ -162,6 +163,24 @@ class PluginManager {
         ).timeout(const Duration(seconds: 8));
 
         if (response.statusCode >= 200 && response.statusCode < 300) {
+          if (response.body.startsWith('{')) {
+            final Map<String, dynamic> data = jsonDecode(response.body);
+            final hits = data['hits'] as List?;
+            if (hits != null && hits.isNotEmpty) {
+              final streams = hits.first['streams'] as Map?;
+              if (streams != null) {
+                final streamUrl = streams['secure_hls_stream']?.toString() ??
+                    streams['secure_shoutcast_stream']?.toString() ??
+                    streams['hls_stream']?.toString() ??
+                    streams['shoutcast_stream']?.toString();
+                if (streamUrl != null && streamUrl.isNotEmpty) {
+                  debugPrint('🔌 [PLUGIN_STREAM_RESOLVED] Extraído de iHeart JSON: $streamUrl');
+                  return {'url': streamUrl, 'headers': {'User-Agent': 'okhttp/4.12.0'}};
+                }
+              }
+            }
+          }
+
           final lines = response.body.split('\n');
           for (final line in lines) {
             final trimmed = line.trim();

@@ -33,6 +33,7 @@ import 'package:musify/services/common_services.dart';
 import 'package:musify/services/data_manager.dart';
 import 'package:musify/services/listening_stats_service.dart';
 import 'package:musify/services/playlists_manager.dart';
+import 'package:musify/services/plugin_manager.dart';
 import 'package:musify/services/settings_manager.dart';
 import 'package:musify/utilities/map_utils.dart';
 import 'package:musify/utilities/media_duration.dart';
@@ -2391,6 +2392,15 @@ class MusifyAudioHandler extends BaseAudioHandler {
   Future<String?> _getPlaybackUrl(Map song, bool isOffline) async {
     if (isOffline) {
       return _getOfflineSongUrl(song);
+    }
+
+    final id = song['id']?.toString() ?? song['ytid']?.toString() ?? '';
+    final isRadio = song['isLive'] == true || id.contains(':');
+
+    if (isRadio) {
+      final rawUrl = song['streamUrl']?.toString() ?? song['audioUrl']?.toString() ?? id;
+      final resolvedInfo = await pluginManager.getStreamUrlForStation(id, rawUrl);
+      return resolvedInfo['url']?.toString() ?? rawUrl;
     }
 
     return fetchSongStreamUrl(song['ytid'], song['isLive'] ?? false);
