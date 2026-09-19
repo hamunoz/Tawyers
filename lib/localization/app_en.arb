@@ -287,5 +287,22 @@
   "useProxyDescription": "Use the proxy only when streaming fails, unnecessary use may break playback.",
   "userPlaylists": "User playlists",
   "yes": "Yes",
-  "youtubePlaylistLinkOrId": "YouTube playlist link or ID"
+  "youtubePlaylistLinkOrId": "YouTube playlist link or ID",
+  "pluginManager": "Plugin Manager",
+  "installedPlugins": "Installed Plugins",
+  "localMusicFolder": "Local Music Folder",
+  "selectMusicFolder": "Select local music folder",
+  "liveStream": "LIVE STREAM",
+  "searchSources": "Search Sources",
+  "selectAll": "Select All",
+  "applyFilters": "Apply",
+  "stationsAndStreams": "Stations & Streams",
+  "noLocalFiles": "No local files in selected folder",
+  "noLocalFilesDescription": "No local files found. Go to Settings > Local Music Folder to scan",
+  "goToSettings": "Go to Settings",
+  "localFiles": "Local Files",
+  "noContentForPlugin": "No content loaded for this plugin",
+  "loadOrReload": "Load / Reload",
+  "localMusic": "Local Music",
+  "allSources": "All Sources"
 }

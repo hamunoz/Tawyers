@@ -30,6 +30,7 @@ import 'package:musify/screens/search_page.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/data_manager.dart';
 import 'package:musify/services/listening_stats_service.dart';
+import 'package:musify/services/local_music_service.dart';
 import 'package:musify/services/playlist_download_service.dart';
 import 'package:musify/services/playlists_manager.dart';
 import 'package:musify/services/router_service.dart';
@@ -118,6 +119,26 @@ class SettingsPage extends StatelessWidget {
           context.l10n!.equalizer,
           FluentIcons.data_histogram_24_regular,
           onTap: () => context.push('/settings/equalizer'),
+        ),
+        CustomBar(
+          context.l10n!.pluginManager,
+          FluentIcons.plug_connected_24_regular,
+          onTap: () => context.push('/settings/plugins'),
+        ),
+        ValueListenableBuilder<String>(
+          valueListenable: localMusicService.selectedFolderNotifier,
+          builder: (context, folderPath, _) {
+            return CustomBar(
+              context.l10n!.localMusicFolder,
+              FluentIcons.folder_24_regular,
+              description: folderPath.isNotEmpty
+                  ? folderPath
+                  : context.l10n!.selectMusicFolder,
+              onTap: () async {
+                await localMusicService.pickAndScanFolder();
+              },
+            );
+          },
         ),
         if (themeMode == ThemeMode.dark)
           CustomBar(

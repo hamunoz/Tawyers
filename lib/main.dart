@@ -35,9 +35,11 @@ import 'package:musify/services/audio_service.dart';
 import 'package:musify/services/data_manager.dart';
 import 'package:musify/services/io_service.dart';
 import 'package:musify/services/listening_stats_service.dart';
+import 'package:musify/services/local_music_service.dart';
 import 'package:musify/services/logger_service.dart';
 import 'package:musify/services/playlist_sharing.dart';
 import 'package:musify/services/playlists_manager.dart';
+import 'package:musify/services/plugin_manager.dart';
 import 'package:musify/services/router_service.dart';
 import 'package:musify/services/settings_manager.dart';
 import 'package:musify/services/update_manager.dart';
@@ -131,6 +133,8 @@ class _MusifyState extends State<Musify> with WidgetsBindingObserver {
     };
 
     offlineMode.addListener(_onOfflineModeChanged);
+    localMusicService.init();
+    pluginManager.init();
 
     sharingIntentSubscription = ReceiveSharingIntent.getTextStream().listen(
       (String? value) async {

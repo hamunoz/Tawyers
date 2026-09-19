@@ -5,18 +5,6 @@
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
- *
- *     Musify is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- *
- *     For more information about Musify, including how to contribute,
- *     please visit: https://github.com/gokadzev/Musify
  */
 
 import 'dart:async';
@@ -56,6 +44,7 @@ class NowPlayingControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop = size.width > 800;
+    final isLive = metadata.extras?['isLive'] ?? false;
 
     final titleFontSize = getResponsiveTitleFontSize(size);
     final artistFontSize = getResponsiveArtistFontSize(size);
@@ -121,12 +110,37 @@ class NowPlayingControls extends StatelessWidget {
               ),
             ),
             if (!isCompact) const Spacer(),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: isDesktop ? 400 : constraints.maxWidth,
+            if (isLive)
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(FluentIcons.live_24_filled, size: 16, color: colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      context.l10n!.liveStream,
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isDesktop ? 400 : constraints.maxWidth,
+                ),
+                child: const PositionSlider(),
               ),
-              child: const PositionSlider(),
-            ),
             SizedBox(height: spacing),
             PlayerControlButtons(
               metadata: metadata,
@@ -211,10 +225,13 @@ class PlayerControlButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.sizeOf(context).width;
+    final isLive = metadata.extras?['isLive'] ?? false;
+
     final responsiveIconSize = screenWidth < 360 ? iconSize * 0.85 : iconSize;
     final responsiveMiniIconSize = screenWidth < 360
         ? miniIconSize * 0.85
         : miniIconSize;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
@@ -278,13 +295,16 @@ class PlayerControlButtons extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: Row(
             children: <Widget>[
-              _buildShuffleButton(
-                context,
-                colorScheme,
-                miniControlSize,
-                buttonConstraints,
-                buttonPadding,
-              ),
+              if (!isLive)
+                _buildShuffleButton(
+                  context,
+                  colorScheme,
+                  miniControlSize,
+                  buttonConstraints,
+                  buttonPadding,
+                )
+              else
+                SizedBox(width: minButtonSize),
               SizedBox(width: buttonSpacing),
               Expanded(
                 child: Center(
@@ -296,17 +316,21 @@ class PlayerControlButtons extends StatelessWidget {
                     buttonSpacing: buttonSpacing,
                     minButtonSize: minButtonSize,
                     playPadding: playPadding,
+                    isLive: isLive,
                   ),
                 ),
               ),
               SizedBox(width: buttonSpacing),
-              _buildRepeatButton(
-                context,
-                colorScheme,
-                miniControlSize,
-                buttonConstraints,
-                buttonPadding,
-              ),
+              if (!isLive)
+                _buildRepeatButton(
+                  context,
+                  colorScheme,
+                  miniControlSize,
+                  buttonConstraints,
+                  buttonPadding,
+                )
+              else
+                SizedBox(width: minButtonSize),
             ],
           ),
         );
@@ -425,6 +449,7 @@ class _PlaybackControlsRow extends StatelessWidget {
     required this.buttonSpacing,
     required this.minButtonSize,
     required this.playPadding,
+    this.isLive = false,
   });
 
   final ColorScheme colorScheme;
@@ -434,6 +459,7 @@ class _PlaybackControlsRow extends StatelessWidget {
   final double buttonSpacing;
   final double minButtonSize;
   final EdgeInsets playPadding;
+  final bool isLive;
 
   @override
   Widget build(BuildContext context) {
@@ -450,11 +476,11 @@ class _PlaybackControlsRow extends StatelessWidget {
                 children: [
                   _PlaybackControlButton(
                     icon: FluentIcons.previous_24_regular,
-                    isEnabled:
-                        audioHandler.hasPrevious ||
-                        repeatMode != AudioServiceRepeatMode.none,
+                    isEnabled: !isLive &&
+                        (audioHandler.hasPrevious ||
+                            repeatMode != AudioServiceRepeatMode.none),
                     tooltip: context.l10n!.skipToPrevious,
-                    onPressed: () => audioHandler.skipToPrevious(),
+                    onPressed: isLive ? null : () => audioHandler.skipToPrevious(),
                     colorScheme: colorScheme,
                     buttonConstraints: buttonConstraints,
                     buttonPadding: buttonPadding,
@@ -471,13 +497,15 @@ class _PlaybackControlsRow extends StatelessWidget {
                   SizedBox(width: buttonSpacing),
                   _PlaybackControlButton(
                     icon: FluentIcons.next_24_regular,
-                    isEnabled:
-                        audioHandler.hasNext ||
-                        repeatMode == AudioServiceRepeatMode.one,
+                    isEnabled: !isLive &&
+                        (audioHandler.hasNext ||
+                            repeatMode == AudioServiceRepeatMode.one),
                     tooltip: context.l10n!.skipToNext,
-                    onPressed: () => repeatMode == AudioServiceRepeatMode.one
-                        ? audioHandler.playAgain()
-                        : audioHandler.skipToNext(),
+                    onPressed: isLive
+                        ? null
+                        : () => repeatMode == AudioServiceRepeatMode.one
+                            ? audioHandler.playAgain()
+                            : audioHandler.skipToNext(),
                     colorScheme: colorScheme,
                     buttonConstraints: buttonConstraints,
                     buttonPadding: buttonPadding,
@@ -510,7 +538,7 @@ class _PlaybackControlButton extends StatelessWidget {
   final IconData icon;
   final bool isEnabled;
   final String tooltip;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final ColorScheme colorScheme;
   final BoxConstraints buttonConstraints;
   final EdgeInsets buttonPadding;
@@ -524,19 +552,13 @@ class _PlaybackControlButton extends StatelessWidget {
         icon,
         color: isEnabled
             ? colorScheme.onSurface
-            : colorScheme.onSurface.withValues(alpha: 0.3),
+            : colorScheme.onSurface.withValues(alpha: 0.38),
       ),
       tooltip: tooltip,
+      iconSize: controlIconSize,
       constraints: buttonConstraints,
-      iconSize: controlIconSize * 0.65,
+      padding: buttonPadding,
       onPressed: isEnabled ? onPressed : null,
-      style: IconButton.styleFrom(
-        backgroundColor: colorScheme.surfaceContainerHighest,
-        disabledBackgroundColor: colorScheme.surfaceContainerHighest,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        padding: buttonPadding,
-        minimumSize: Size(minButtonSize, minButtonSize),
-      ),
     );
   }
 }

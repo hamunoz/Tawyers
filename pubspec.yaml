@@ -1,11 +1,11 @@
 name: musify
 description: Music Streaming app made in Flutter!
 homepage: https://github.com/gokadzev/Musify
-repository: https://github.com/gokadzev/Musify
+repository: https://github.com/hamunoz/tawyers
 issue_tracker: https://github.com/gokadzev/Musify/issues
 
 publish_to: 'none'
-version: 10.4.0+181 # run update.sh after changing the version
+version: 10.5.0 # run update.sh after changing the version
 
 environment:
   sdk: '>=3.13.0 <4.0.0'
@@ -21,6 +21,7 @@ dependencies:
   fluentui_system_icons: ^1.1.273
   flutter:
     sdk: flutter
+  flutter_js: ^0.8.0
   flutter_localizations:
     sdk: flutter
   go_router: ^18.0.1
@@ -55,6 +56,7 @@ flutter:
   assets:
     - assets/licenses/
     - assets/icons/musify_icon.png
+    - assets/plugins/
 
   fonts:
     - family: paytoneOne

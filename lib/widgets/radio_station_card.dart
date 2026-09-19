@@ -5,18 +5,6 @@
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
- *
- *     Musify is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- *
- *     For more information about Musify, including how to contribute,
- *     please visit: https://github.com/gokadzev/Musify
  */
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -24,6 +12,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:musify/models/radio_model.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/utilities/artwork_provider.dart';
+import 'package:musify/utilities/playlist_dialogs.dart';
 import 'package:musify/widgets/shapes/eight_leaf_clover_shape.dart';
 
 class RadioStationCard extends StatefulWidget {
@@ -69,17 +58,20 @@ class _RadioStationCardState extends State<RadioStationCard> {
 
   Future<void> _handleFavoriteTap() async {
     final wasFavorited = _isFavorited.value;
-    _isFavorited.value = !wasFavorited;
 
-    try {
-      if (wasFavorited) {
+    if (wasFavorited) {
+      _isFavorited.value = false;
+      try {
         await removeRadioStationFromLiked(widget.station.id);
-      } else {
-        await addRadioStationToLiked(widget.station.id);
+        widget.onFavoritesChanged?.call();
+      } catch (e) {
+        _isFavorited.value = true;
       }
-      widget.onFavoritesChanged?.call();
-    } catch (e) {
-      _isFavorited.value = wasFavorited; // revert on failure
+    } else {
+      showAddToPlaylistDialog(
+        context,
+        song: widget.station.toMap(),
+      );
     }
   }
 

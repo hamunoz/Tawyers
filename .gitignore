@@ -42,7 +42,12 @@ app.*.map.json
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 
-# Android related
+# Android & Keystore Signing Security (DO NOT UPLOAD TO GITHUB)
+*.jks
+*.keystore
+key.properties
+android/key.properties
+android/app/key.jks
 android/app/.cxx/
 
 # Generated localization dart files

@@ -285,5 +285,22 @@
   "useProxyDescription": "Usa el proxy solo cuando el streaming falle, uso innecesario puede interrumpir la reproducción.",
   "userPlaylists": "Listas de reproducción del usuario",
   "yes": "Si",
-  "youtubePlaylistLinkOrId": "Enlace o ID de lista de reproducción de YouTube"
+  "youtubePlaylistLinkOrId": "Enlace o ID de lista de reproducción de YouTube",
+  "pluginManager": "Gestor de Plugins",
+  "installedPlugins": "Plugins Instalados",
+  "localMusicFolder": "Carpeta de Música Local",
+  "selectMusicFolder": "Seleccionar carpeta de archivos locales",
+  "liveStream": "TRANSMISIÓN EN VIVO",
+  "searchSources": "Fuentes de Búsqueda",
+  "selectAll": "Marcar Todos",
+  "applyFilters": "Aplicar",
+  "stationsAndStreams": "Emisoras y Transmisiones",
+  "noLocalFiles": "No hay archivos locales en la carpeta seleccionada",
+  "noLocalFilesDescription": "No hay archivos locales. Ve a Ajustes > Carpeta de Música Local para escanear",
+  "goToSettings": "Ir a Ajustes",
+  "localFiles": "Archivos Locales",
+  "noContentForPlugin": "Sin contenido cargado para este plugin",
+  "loadOrReload": "Cargar / Recargar",
+  "localMusic": "Música Local",
+  "allSources": "Todas las Fuentes"
 }

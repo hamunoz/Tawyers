@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Tawyers (F-Droid Debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--flavor",
+        "fdroid"
+      ]
+    },
+    {
+      "name": "Tawyers (F-Droid Release)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "release",
+      "args": [
+        "--flavor",
+        "fdroid"
+      ]
+    },
+    {
+      "name": "Tawyers (GitHub Debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--flavor",
+        "github"
+      ]
+    }
+  ]
+}

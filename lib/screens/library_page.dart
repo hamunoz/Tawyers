@@ -24,11 +24,13 @@ import 'dart:async';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:musify/constants/app_constants.dart';
+import 'package:musify/database/radio_stations.db.dart';
 import 'package:musify/extensions/l10n.dart';
-import 'package:musify/main.dart' show logger;
+import 'package:musify/main.dart' show logger, audioHandler;
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/playlist_download_service.dart';
 import 'package:musify/services/playlists_manager.dart';
+import 'package:musify/services/plugin_manager.dart';
 import 'package:musify/services/router_service.dart';
 import 'package:musify/services/settings_manager.dart';
 import 'package:musify/utilities/app_utils.dart';
@@ -40,6 +42,7 @@ import 'package:musify/utilities/playlist_utils.dart';
 import 'package:musify/widgets/confirmation_dialog.dart';
 import 'package:musify/widgets/mini_player_bottom_space.dart';
 import 'package:musify/widgets/playlist_bar.dart';
+import 'package:musify/widgets/radio_station_card.dart';
 import 'package:musify/widgets/section_header.dart';
 
 class LibraryPage extends StatefulWidget {
@@ -123,6 +126,7 @@ class _LibraryPageState extends State<LibraryPage> {
           userPlaylistFolders,
           offlinePlaylistService.offlinePlaylists,
           userLikedPlaylists,
+          userLikedRadioStations,
           onlinePlaylists,
           userPlaylists,
           userOfflineSongs,
@@ -134,6 +138,7 @@ class _LibraryPageState extends State<LibraryPage> {
               slivers: [
                 ..._buildPinnedSlivers(),
                 ..._buildUserPlaylistsSlivers(),
+                ..._buildLikedRadioStationsSlivers(),
                 if (!offlineMode.value) ..._buildLikedPlaylistsSlivers(),
                 ..._buildLikedArtistsSlivers(),
                 const SliverMiniPlayerBottomSpace(),
@@ -242,7 +247,7 @@ class _LibraryPageState extends State<LibraryPage> {
               ),
               if (!isOffline) ...[
                 PlaylistBar(
-                  context.l10n!.recentlyPlayed,
+                  'History Song',
                   onPressed: () =>
                       NavigationManager.router.go('/library/userSongs/recents'),
                   cubeIcon: FluentIcons.history_24_regular,
@@ -250,7 +255,14 @@ class _LibraryPageState extends State<LibraryPage> {
                   showBuildActions: false,
                 ),
                 PlaylistBar(
-                  context.l10n!.likedSongs,
+                  'History Streaming',
+                  onPressed: () =>
+                      NavigationManager.router.go('/library/userSongs/recentStreams'),
+                  cubeIcon: FluentIcons.live_24_regular,
+                  showBuildActions: false,
+                ),
+                PlaylistBar(
+                  'Liked Items',
                   onPressed: () =>
                       NavigationManager.router.go('/library/userSongs/liked'),
                   cubeIcon: FluentIcons.heart_24_regular,
@@ -261,13 +273,6 @@ class _LibraryPageState extends State<LibraryPage> {
                   onPressed: () =>
                       NavigationManager.router.go('/library/userSongs/offline'),
                   cubeIcon: FluentIcons.cloud_off_24_regular,
-                  showBuildActions: false,
-                ),
-                PlaylistBar(
-                  context.l10n!.radioStations,
-                  onPressed: () =>
-                      NavigationManager.router.go('/library/radioStations'),
-                  cubeIcon: FluentIcons.sound_source_24_regular,
                   borderRadius: hasCustomPlaylists || hasFolders
                       ? BorderRadius.zero
                       : commonCustomBarRadiusLast,
@@ -344,6 +349,50 @@ class _LibraryPageState extends State<LibraryPage> {
     }
 
     return slivers;
+  }
+
+  List<Widget> _buildLikedRadioStationsSlivers() {
+    final likedIds = userLikedRadioStations.value;
+    if (likedIds.isEmpty) return [];
+
+    final allRadioStations = [...radioStationsDB];
+    final likedStations = allRadioStations.where((s) => likedIds.contains(s.id)).toList();
+    if (likedStations.isEmpty) return [];
+
+    return [
+      const SliverToBoxAdapter(
+        child: SectionHeader(
+          title: 'Emisoras Favoritas',
+          icon: FluentIcons.speaker_2_24_filled,
+        ),
+      ),
+      SliverList.builder(
+        itemCount: likedStations.length,
+        itemBuilder: (context, index) {
+          final station = likedStations[index];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: RadioStationCard(
+              station: station,
+              onPressed: () async {
+                final resolvedInfo = await pluginManager.getStreamUrlForStation(
+                  station.id,
+                  station.streamUrl,
+                );
+                final finalUrl = resolvedInfo['url']?.toString() ?? station.streamUrl;
+                await audioHandler.playRadioStream(
+                  id: station.id,
+                  name: station.name,
+                  streamUrl: finalUrl,
+                  image: station.image,
+                  genre: station.genre,
+                );
+              },
+            ),
+          );
+        },
+      ),
+    ];
   }
 
   List<Widget> _buildLikedPlaylistsSlivers() {

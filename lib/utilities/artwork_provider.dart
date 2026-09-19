@@ -5,18 +5,6 @@
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
- *
- *     Musify is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- *
- *     For more information about Musify, including how to contribute,
- *     please visit: https://github.com/gokadzev/Musify
  */
 
 import 'dart:convert';
@@ -32,7 +20,9 @@ class ArtworkProvider {
   static final Map<String, ImageProvider> _cache = {};
 
   static ImageProvider get(String artwork) {
-    if (artwork.isEmpty) throw ArgumentError('artwork must not be empty');
+    if (artwork.isEmpty || artwork.trim().isEmpty) {
+      return const AssetImage('assets/icons/musify_icon.png');
+    }
 
     final cached = _cache[artwork];
     if (cached != null) return cached;
@@ -51,10 +41,10 @@ class ArtworkProvider {
         final path = artwork.replaceFirst('file://', '');
         provider = FileImage(File(path));
       } else {
-        provider = AssetImage(artwork);
+        provider = const AssetImage('assets/icons/musify_icon.png');
       }
     } catch (_) {
-      provider = const AssetImage('assets/placeholder.png');
+      provider = const AssetImage('assets/icons/musify_icon.png');
     }
 
     _cache[artwork] = provider;

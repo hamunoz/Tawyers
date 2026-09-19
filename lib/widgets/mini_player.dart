@@ -28,6 +28,9 @@ import 'package:musify/main.dart';
 import 'package:musify/models/full_player_state.dart';
 import 'package:musify/models/position_data.dart';
 import 'package:musify/screens/now_playing_page.dart';
+import 'package:musify/services/common_services.dart';
+import 'package:musify/utilities/mediaitem.dart';
+import 'package:musify/utilities/playlist_dialogs.dart';
 import 'package:musify/widgets/marquee.dart';
 import 'package:musify/widgets/song_artwork.dart';
 import 'package:rxdart/rxdart.dart';
@@ -235,6 +238,7 @@ class _MiniPlayerBodyState extends State<_MiniPlayerBody>
                         playbackState: state.playbackState,
                         hasNext: widget.hasNext,
                         progress: progress,
+                        metadata: metadata,
                       ),
                     ],
                   ),
@@ -342,18 +346,25 @@ class _ControlsWidget extends StatelessWidget {
     required this.playbackState,
     required this.hasNext,
     required this.progress,
+    required this.metadata,
   });
 
   final ColorScheme colorScheme;
   final PlaybackState playbackState;
   final bool hasNext;
   final double progress;
+  final MediaItem metadata;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _FavoriteButton(
+          colorScheme: colorScheme,
+          metadata: metadata,
+        ),
+        const SizedBox(width: 4),
         _CircularPlayButton(
           colorScheme: colorScheme,
           playbackState: playbackState,
@@ -374,6 +385,99 @@ class _ControlsWidget extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _FavoriteButton extends StatefulWidget {
+  const _FavoriteButton({
+    required this.colorScheme,
+    required this.metadata,
+  });
+
+  final ColorScheme colorScheme;
+  final MediaItem metadata;
+
+  @override
+  State<_FavoriteButton> createState() => _FavoriteButtonState();
+}
+
+class _FavoriteButtonState extends State<_FavoriteButton> {
+  late ValueNotifier<bool> _isLiked;
+
+  String get audioId => widget.metadata.extras?['ytid']?.toString() ?? widget.metadata.id;
+  bool get isRadio => widget.metadata.extras?['isLive'] == true || audioId.contains(':');
+
+  @override
+  void initState() {
+    super.initState();
+    _initListener();
+  }
+
+  void _initListener() {
+    if (isRadio) {
+      _isLiked = ValueNotifier<bool>(isRadioStationLiked(audioId));
+      userLikedRadioStations.addListener(_syncStatus);
+    } else {
+      _isLiked = ValueNotifier<bool>(isSongAlreadyLiked(audioId));
+      userLikedSongsList.addListener(_syncStatus);
+    }
+  }
+
+  void _syncStatus() {
+    final newStatus = isRadio ? isRadioStationLiked(audioId) : isSongAlreadyLiked(audioId);
+    if (_isLiked.value != newStatus) {
+      _isLiked.value = newStatus;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_FavoriteButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.metadata.id != widget.metadata.id) {
+      _syncStatus();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (isRadio) {
+      userLikedRadioStations.removeListener(_syncStatus);
+    } else {
+      userLikedSongsList.removeListener(_syncStatus);
+    }
+    _isLiked.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _isLiked,
+      builder: (context, isLiked, _) {
+        return IconButton(
+          icon: Icon(
+            isLiked ? FluentIcons.heart_24_filled : FluentIcons.heart_24_regular,
+            color: isLiked ? widget.colorScheme.primary : widget.colorScheme.onSurfaceVariant,
+            size: 22,
+          ),
+          onPressed: () {
+            if (isLiked) {
+              if (isRadio) {
+                removeRadioStationFromLiked(audioId);
+              } else {
+                updateSongLikeStatus(audioId, false);
+              }
+            } else {
+              showAddToPlaylistDialog(
+                context,
+                song: mediaItemToMap(widget.metadata),
+              );
+            }
+          },
+          visualDensity: VisualDensity.compact,
+        );
+      },
     );
   }
 }

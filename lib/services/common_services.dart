@@ -51,9 +51,17 @@ ValueNotifier<List<String>> userLikedRadioStations =
         Hive.box('user').get('likedRadioStations', defaultValue: []),
       ),
     );
+ValueNotifier<List> userLikedRadioStationsData = ValueNotifier<List>(
+  List<Map>.from(
+    Hive.box('user').get('likedRadioStationsData', defaultValue: []),
+  ),
+);
 
 ValueNotifier<List> userRecentlyPlayed = ValueNotifier<List>(
   Hive.box('user').get('recentlyPlayedSongs', defaultValue: []),
+);
+ValueNotifier<List> userRecentlyPlayedStreams = ValueNotifier<List>(
+  Hive.box('user').get('recentlyPlayedStreams', defaultValue: []),
 );
 ValueNotifier<List> userOfflineSongs = ValueNotifier<List>(
   Hive.box('userNoBackup').get('offlineSongs', defaultValue: []),
@@ -505,7 +513,7 @@ bool isRadioStationLiked(String radioStationId) {
   return userLikedRadioStations.value.contains(radioStationId);
 }
 
-Future<void> addRadioStationToLiked(String radioStationId) async {
+Future<void> addRadioStationToLiked(String radioStationId, {Map? stationData}) async {
   if (!userLikedRadioStations.value.contains(radioStationId)) {
     final updatedList = List<String>.from(userLikedRadioStations.value)
       ..add(radioStationId);
@@ -515,6 +523,20 @@ Future<void> addRadioStationToLiked(String radioStationId) async {
       'likedRadioStations',
       updatedList,
     );
+  }
+
+  if (stationData != null) {
+    final updatedData = List<Map>.from(userLikedRadioStationsData.value);
+    final id = stationData['id']?.toString() ?? stationData['ytid']?.toString() ?? radioStationId;
+    if (!updatedData.any((s) => s['id'] == id || s['ytid'] == id)) {
+      final newMap = Map<String, dynamic>.from(stationData);
+      newMap['id'] = id;
+      newMap['ytid'] = id;
+      newMap['isLive'] = true;
+      updatedData.add(newMap);
+      userLikedRadioStationsData.value = updatedData;
+      await addOrUpdateData<List>('user', 'likedRadioStationsData', updatedData);
+    }
   }
 }
 
@@ -527,6 +549,11 @@ Future<void> removeRadioStationFromLiked(String radioStationId) async {
       addOrUpdateData<List<String>>('user', 'likedRadioStations', updatedList),
     );
   }
+
+  final updatedData = List<Map>.from(userLikedRadioStationsData.value)
+    ..removeWhere((s) => s['id'] == radioStationId || s['ytid'] == radioStationId);
+  userLikedRadioStationsData.value = updatedData;
+  unawaited(addOrUpdateData<List>('user', 'likedRadioStationsData', updatedData));
 }
 
 bool isSongAlreadyOffline(songIdToCheck) {
@@ -1181,13 +1208,53 @@ Future<void> updateRecentlyPlayed(dynamic songId, {Map? songFallback}) async {
       ),
     );
   } catch (e, stackTrace) {
-    logger.log(
-      'Error updating recently played',
-      error: e,
-      stackTrace: stackTrace,
-    );
+    logger.log('Error updating recently played', error: e, stackTrace: stackTrace);
   }
 }
+
+  Future<void> updateRecentlyPlayedStream({
+    required String id,
+    required String name,
+    required String streamUrl,
+    required String image,
+    String? genre,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final updatedList = List.from(userRecentlyPlayedStreams.value);
+
+      final existingIndex = updatedList.indexWhere((item) => item['id'] == id);
+      if (existingIndex != -1) {
+        updatedList.removeAt(existingIndex);
+      } else if (updatedList.length >= 50) {
+        updatedList.removeLast();
+      }
+
+      final newStreamItem = {
+        'id': id,
+        'ytid': id,
+        'title': name,
+        'artist': genre ?? 'Radio Stream',
+        'image': image,
+        'streamUrl': streamUrl,
+        'isLive': true,
+        'lastPlayed': now,
+      };
+
+      updatedList.insert(0, newStreamItem);
+      userRecentlyPlayedStreams.value = updatedList;
+
+      unawaited(
+        addOrUpdateData<List>(
+          'user',
+          'recentlyPlayedStreams',
+          userRecentlyPlayedStreams.value,
+        ),
+      );
+    } catch (e, stackTrace) {
+      logger.log('Error updating recently played stream', error: e, stackTrace: stackTrace);
+    }
+  }
 
 Future<void> removeFromRecentlyPlayed(dynamic songId) async {
   if (userRecentlyPlayed.value.any((song) => song['ytid'] == songId)) {

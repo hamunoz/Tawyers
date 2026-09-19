@@ -5,18 +5,6 @@
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
- *
- *     Musify is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- *
- *     For more information about Musify, including how to contribute,
- *     please visit: https://github.com/gokadzev/Musify
  */
 
 import 'dart:async';
@@ -26,16 +14,17 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:musify/constants/app_constants.dart';
-import 'package:musify/database/radio_stations.db.dart';
 import 'package:musify/extensions/l10n.dart';
 import 'package:musify/main.dart';
 import 'package:musify/models/radio_model.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/data_manager.dart';
 import 'package:musify/services/playlists_manager.dart';
+import 'package:musify/services/plugin_manager.dart';
 import 'package:musify/services/router_service.dart';
 import 'package:musify/utilities/app_utils.dart';
 import 'package:musify/utilities/flutter_toast.dart';
+import 'package:musify/utilities/song_filtering.dart';
 import 'package:musify/widgets/artist_bar.dart';
 import 'package:musify/widgets/confirmation_dialog.dart';
 import 'package:musify/widgets/custom_bar.dart';
@@ -53,7 +42,6 @@ class SearchPage extends StatefulWidget {
   _SearchPageState createState() => _SearchPageState();
 }
 
-// Global ValueNotifier for search history to make it reactive
 final ValueNotifier<List> searchHistoryNotifier = ValueNotifier<List>(
   Hive.box('user').get('searchHistory', defaultValue: []),
 );
@@ -78,21 +66,21 @@ class _SearchPageState extends State<SearchPage> {
   int _latestSuggestionRequest = 0;
   int _latestSearchRequest = 0;
 
-  Future<void> _submitSearch([String? query]) async {
-    if (query != null) {
-      _searchBar.text = query;
-      _searchBar.selection = TextSelection.fromPosition(
-        TextPosition(offset: _searchBar.text.length),
-      );
-    }
+  // Selección múltiple de fuentes de búsqueda (Todas seleccionadas por defecto)
+  final Set<String> _activeSearchSources = {
+    'offline',
+    'youtube',
+    'iheartradio',
+    'tunein',
+    'iptv_audio',
+    'radio_browser',
+  };
 
-    _latestSuggestionRequest++;
-    _debounce?.cancel();
-    _suggestionsList = [];
-    if (mounted) setState(() {});
-
-    await search();
-    _inputNode.unfocus();
+  @override
+  void initState() {
+    super.initState();
+    reloadSearchHistoryFromStorage();
+    pluginManager.init();
   }
 
   @override
@@ -104,7 +92,22 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
+  Future<void> _submitSearch([String? query]) async {
+    _inputNode.unfocus();
+    _suggestionsList = [];
+    if (query != null) {
+      _searchBar.text = query;
+      _searchBar.selection = TextSelection.fromPosition(
+        TextPosition(offset: _searchBar.text.length),
+      );
+    }
+    await search();
+  }
+
   Future<void> search() async {
+    _inputNode.unfocus();
+    _suggestionsList = [];
+
     final query = _searchBar.text.trim();
     final requestId = ++_latestSearchRequest;
 
@@ -115,24 +118,66 @@ class _SearchPageState extends State<SearchPage> {
       _playlistsSearchResult = [];
       _radioStationsSearchResult = [];
       _suggestionsList = [];
+      _fetchingSongs.value = false;
       if (mounted) setState(() {});
       return;
     }
+
     _fetchingSongs.value = true;
+
+    // Timer de seguridad: Detiene el icono de carga tras 7 segundos máximo
+    Timer(const Duration(seconds: 7), () {
+      if (mounted && requestId == _latestSearchRequest && _fetchingSongs.value) {
+        _fetchingSongs.value = false;
+      }
+    });
 
     _songsSearchResult = [];
     _artistsSearchResult = [];
     _albumsSearchResult = [];
     _playlistsSearchResult = [];
-    _radioStationsSearchResult = radioStationsDB
-        .where(
-          (station) =>
-              station.name.toLowerCase().contains(query.toLowerCase()) ||
-              (station.genre?.toLowerCase().contains(query.toLowerCase()) ??
-                  false),
-        )
+    _radioStationsSearchResult = [];
+
+    // 1. Si está activo Offline, buscamos en canciones locales
+    if (_activeSearchSources.contains('offline')) {
+      final localSongs = filterSongsByQuery(userOfflineSongs.value, query);
+      _songsSearchResult.addAll(localSongs);
+    }
+
+    // 2. Búsqueda en los plugins activos seleccionados
+    final enabledPlugins = pluginManager.pluginsNotifier.value
+        .where((p) => p.enabled && _activeSearchSources.contains(p.id))
         .toList();
-    if (mounted) setState(() {});
+
+    if (enabledPlugins.isNotEmpty) {
+      final activePluginIds = enabledPlugins.map((p) => p.id).toList();
+      unawaited(
+        pluginManager.searchAllPlugins(query, pluginIds: activePluginIds).then((pluginResults) {
+          if (mounted && requestId == _latestSearchRequest) {
+            _fetchingSongs.value = false;
+            if (pluginResults.isNotEmpty) {
+              final pluginStations = pluginResults.map((map) {
+                return RadioStation(
+                  id: map['id']?.toString() ?? '',
+                  name: map['title']?.toString() ?? map['name']?.toString() ?? 'Emisora',
+                  image: map['image']?.toString() ?? '',
+                  streamUrl: map['streamUrl']?.toString() ?? '',
+                  genre: map['genre']?.toString() ?? map['artist']?.toString(),
+                );
+              }).where((s) => s.streamUrl.isNotEmpty).toList();
+
+              setState(() {
+                _radioStationsSearchResult = [..._radioStationsSearchResult, ...pluginStations];
+              });
+            }
+          }
+        }).catchError((_) {
+          if (mounted && requestId == _latestSearchRequest) {
+            _fetchingSongs.value = false;
+          }
+        }),
+      );
+    }
 
     if (!searchHistoryNotifier.value.contains(query)) {
       final updatedHistory = List.from(searchHistoryNotifier.value)
@@ -141,104 +186,91 @@ class _SearchPageState extends State<SearchPage> {
       unawaited(addOrUpdateData<List>('user', 'searchHistory', updatedHistory));
     }
 
-    try {
-      final artistsFuture = searchArtists(query);
+    // 3. Búsqueda en YouTube si está seleccionado
+    if (_activeSearchSources.contains('youtube')) {
+      try {
+        final artistsFuture = searchArtists(query);
 
-      Future<void> publishSongs() async {
-        try {
-          var songs = await fetchSongsList(query);
-          if (!mounted || requestId != _latestSearchRequest) return;
-
-          if (songs.isEmpty) {
-            final artists = await artistsFuture;
+        Future<void> publishSongs() async {
+          try {
+            var songs = await fetchSongsList(query);
             if (!mounted || requestId != _latestSearchRequest) return;
-            if (_artistsSearchResult.isEmpty) {
+
+            if (songs.isEmpty) {
+              final artists = await artistsFuture;
+              if (!mounted || requestId != _latestSearchRequest) return;
+              if (_artistsSearchResult.isEmpty) {
+                _artistsSearchResult = artists
+                    .whereType<Map>()
+                    .map(Map<String, dynamic>.from)
+                    .toList();
+              }
+              if (_artistsSearchResult.isNotEmpty) {
+                songs = await _fetchSongsForResolvedArtist(query);
+              }
+            }
+
+            if (!mounted || requestId != _latestSearchRequest) return;
+            _fetchingSongs.value = false;
+            setState(() => _songsSearchResult = [..._songsSearchResult, ...songs]);
+          } catch (e, stackTrace) {
+            _fetchingSongs.value = false;
+            logger.log(
+              'Error while searching online songs',
+              error: e,
+              stackTrace: stackTrace,
+            );
+          }
+        }
+
+        unawaited(publishSongs());
+
+        unawaited(
+          searchArtists(query).then((artists) {
+            if (!mounted || requestId != _latestSearchRequest) return;
+            _fetchingSongs.value = false;
+            setState(() {
               _artistsSearchResult = artists
                   .whereType<Map>()
                   .map(Map<String, dynamic>.from)
                   .toList();
-            }
-            if (_artistsSearchResult.isNotEmpty) {
-              songs = await _fetchSongsForResolvedArtist(query);
-            }
-          }
+            });
+          }).catchError((e, stackTrace) {
+            _fetchingSongs.value = false;
+            logger.log('Error while searching online artists', error: e, stackTrace: stackTrace);
+          }),
+        );
 
-          if (!mounted || requestId != _latestSearchRequest) return;
-          setState(() => _songsSearchResult = songs);
-        } catch (e, stackTrace) {
-          logger.log(
-            'Error while searching online songs',
-            error: e,
-            stackTrace: stackTrace,
-          );
-        }
-      }
+        unawaited(
+          getPlaylists(query: query, type: 'album').then((albums) {
+            if (!mounted || requestId != _latestSearchRequest) return;
+            _fetchingSongs.value = false;
+            setState(() => _albumsSearchResult = albums);
+          }).catchError((e, stackTrace) {
+            _fetchingSongs.value = false;
+            logger.log('Error while searching online albums', error: e, stackTrace: stackTrace);
+          }),
+        );
 
-      Future<void> publishArtists() async {
-        try {
-          final artists = await artistsFuture;
-          if (!mounted || requestId != _latestSearchRequest) return;
-          setState(() {
-            _artistsSearchResult = artists
-                .whereType<Map>()
-                .map(Map<String, dynamic>.from)
-                .toList();
-          });
-        } catch (e, stackTrace) {
-          logger.log(
-            'Error while searching online artists',
-            error: e,
-            stackTrace: stackTrace,
-          );
-        }
-      }
-
-      Future<void> publishAlbums() async {
-        try {
-          final albums = await getPlaylists(query: query, type: 'album');
-          if (!mounted || requestId != _latestSearchRequest) return;
-          setState(() => _albumsSearchResult = albums);
-        } catch (e, stackTrace) {
-          logger.log(
-            'Error while searching online albums',
-            error: e,
-            stackTrace: stackTrace,
-          );
-        }
-      }
-
-      Future<void> publishPlaylists() async {
-        try {
-          final playlists = await getPlaylists(query: query, type: 'playlist');
-          if (!mounted || requestId != _latestSearchRequest) return;
-          setState(() => _playlistsSearchResult = playlists);
-        } catch (e, stackTrace) {
-          logger.log(
-            'Error while searching online playlists',
-            error: e,
-            stackTrace: stackTrace,
-          );
-        }
-      }
-
-      await Future.wait([
-        publishSongs(),
-        publishArtists(),
-        publishAlbums(),
-        publishPlaylists(),
-      ]);
-    } catch (e, stackTrace) {
-      logger.log(
-        'Error while searching online songs',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    } finally {
-      if (requestId == _latestSearchRequest) {
+        unawaited(
+          getPlaylists(query: query, type: 'playlist').then((playlists) {
+            if (!mounted || requestId != _latestSearchRequest) return;
+            _fetchingSongs.value = false;
+            setState(() => _playlistsSearchResult = playlists);
+          }).catchError((e, stackTrace) {
+            _fetchingSongs.value = false;
+            logger.log('Error while searching online playlists', error: e, stackTrace: stackTrace);
+          }),
+        );
+      } catch (e, stackTrace) {
         _fetchingSongs.value = false;
-        if (mounted) setState(() {});
+        logger.log('Error while searching online songs', error: e, stackTrace: stackTrace);
       }
+    } else {
+      _fetchingSongs.value = false;
     }
+
+    if (mounted) setState(() {});
   }
 
   Future<List<dynamic>> _fetchSongsForResolvedArtist(String query) async {
@@ -259,11 +291,185 @@ class _SearchPageState extends State<SearchPage> {
     return [];
   }
 
+  void _showSearchFilterDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final activePlugins = pluginManager.pluginsNotifier.value
+                .where((p) => p.enabled)
+                .toList();
+
+            final sources = [
+              {
+                'id': 'offline',
+                'title': context.l10n!.offlineSongs,
+                'icon': FluentIcons.folder_24_regular,
+              },
+              {
+                'id': 'youtube',
+                'title': 'YouTube Music',
+                'icon': FluentIcons.play_24_regular,
+              },
+              ...activePlugins.map((p) => {
+                    'id': p.id,
+                    'title': p.name,
+                    'icon': _getPluginIconData(p.type),
+                  }),
+            ];
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      context.l10n!.searchSources,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...sources.map((src) {
+                      final id = src['id'] as String;
+                      final title = src['title'] as String;
+                      final icon = src['icon'] as IconData;
+                      final isSelected = _activeSearchSources.contains(id);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Card(
+                          elevation: 0,
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primaryContainer
+                              : Theme.of(context).colorScheme.surfaceContainerLow,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.transparent,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () {
+                              setModalState(() {
+                                if (isSelected) {
+                                  _activeSearchSources.remove(id);
+                                } else {
+                                  _activeSearchSources.add(id);
+                                }
+                              });
+                              setState(() {});
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    icon,
+                                    color: isSelected
+                                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Text(
+                                      title,
+                                      style: TextStyle(
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                        color: isSelected
+                                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                                            : Theme.of(context).colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Icon(
+                                      FluentIcons.checkmark_24_filled,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 20,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          if (_searchBar.text.isNotEmpty) {
+                            _submitSearch();
+                          }
+                        },
+                        child: Text(
+                          context.l10n!.applyFilters,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  IconData _getPluginIconData(String type) {
+    switch (type) {
+      case 'radio':
+        return Icons.radio;
+      case 'iptv_audio':
+        return FluentIcons.live_24_regular;
+      case 'music':
+        return FluentIcons.music_note_1_24_regular;
+      default:
+        return FluentIcons.plug_connected_24_regular;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
     return Scaffold(
-      appBar: AppBar(title: Text(context.l10n!.search)),
+      appBar: AppBar(
+        title: Text(context.l10n!.search),
+        actions: [
+          IconButton(
+            icon: const Icon(FluentIcons.options_24_regular),
+            tooltip: context.l10n!.searchSources,
+            onPressed: () => _showSearchFilterDialog(context),
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: commonSingleChildScrollViewPadding,
         child: Column(
@@ -281,12 +487,10 @@ class _SearchPageState extends State<SearchPage> {
                     focusNode: _inputNode,
                     labelText: '${context.l10n!.search}...',
                     onChanged: (value) {
-                      // debounce suggestions to avoid rapid API calls
                       _debounce?.cancel();
                       final query = value;
                       final requestId = ++_latestSuggestionRequest;
 
-                      // Clear suggestions immediately if input is empty
                       if (query.isEmpty) {
                         _suggestionsList = [];
                         if (mounted) setState(() {});
@@ -354,40 +558,47 @@ class _SearchPageState extends State<SearchPage> {
                               Builder(
                                 builder: (context) {
                                   final query = items[index];
-                                  final borderRadius = getItemBorderRadius(
-                                    index,
-                                    items.length,
-                                  );
-
                                   return CustomBar(
-                                    query,
-                                    FluentIcons.search_24_regular,
-                                    borderRadius: borderRadius,
+                                    query.toString(),
+                                    _suggestionsList.isEmpty
+                                        ? FluentIcons.history_24_regular
+                                        : FluentIcons.search_24_regular,
                                     onTap: () async {
                                       await _submitSearch(query.toString());
                                     },
-                                    onLongPress: () async {
-                                      final confirm =
-                                          await _showConfirmationDialog(
-                                            context,
-                                          ) ??
-                                          false;
-                                      if (confirm &&
-                                          searchHistory.contains(query)) {
-                                        final updatedHistory = List.from(
-                                          searchHistory,
-                                        )..remove(query);
-                                        searchHistoryNotifier.value =
-                                            updatedHistory;
-                                        unawaited(
-                                          addOrUpdateData<List>(
-                                            'user',
-                                            'searchHistory',
-                                            updatedHistory,
-                                          ),
-                                        );
-                                      }
-                                    },
+                                    onLongPress:
+                                        _suggestionsList.isEmpty &&
+                                                searchHistory.contains(query)
+                                            ? () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) => ConfirmationDialog(
+                                                    confirmationMessage: context
+                                                        .l10n!
+                                                        .removeSearchQueryQuestion,
+                                                    submitMessage: context.l10n!.confirm,
+                                                    onCancel: () => Navigator.pop(context),
+                                                    onSubmit: () {
+                                                      Navigator.pop(context);
+                                                      final updatedHistory =
+                                                          List.from(
+                                                            searchHistory,
+                                                          )..remove(query);
+                                                      searchHistoryNotifier
+                                                              .value =
+                                                          updatedHistory;
+                                                      unawaited(
+                                                        addOrUpdateData<List>(
+                                                          'user',
+                                                          'searchHistory',
+                                                          updatedHistory,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                );
+                                              }
+                                            : null,
                                   );
                                 },
                               ),
@@ -419,20 +630,17 @@ class _SearchPageState extends State<SearchPage> {
 
       final artists = _artistsSearchResult.take(3).toList();
       for (var index = 0; index < artists.length; index++) {
-        final artist = Map<String, dynamic>.from(artists[index]);
-        final artistId =
-            artist['ytid']?.toString() ?? artist['title']?.toString() ?? '';
-        if (artistId.isEmpty) continue;
+        final artist = artists[index];
+        final artistId = artist['ytid']?.toString() ?? '';
 
-        final borderRadius = getItemBorderRadius(index, artists.length);
         widgets.add(
           ArtistBar(
             key: listItemKey('search_artist', index, artist),
             artist: artist,
-            borderRadius: borderRadius,
             onTap: () {
+              final encodedPath = Uri.encodeComponent(artistId);
               context.push(
-                '${NavigationManager.searchPath}/artist/${Uri.encodeComponent(artistId)}',
+                '${NavigationManager.searchPath}/artist/$encodedPath',
                 extra: artist,
               );
             },
@@ -458,11 +666,21 @@ class _SearchPageState extends State<SearchPage> {
       for (var index = 0; index < songsCount; index++) {
         final song = _songsSearchResult[index];
         final borderRadius = getItemBorderRadius(index, songsCount);
+
         widgets.add(
           SongBar(
             song,
-            true,
+            false,
             key: listItemKey('search_song', index, song),
+            onPlay: () {
+              audioHandler.playPlaylistSong(
+                playlist: {
+                  'title': 'Búsqueda',
+                  'list': _songsSearchResult,
+                },
+                songIndex: index,
+              );
+            },
             showMusicDuration: true,
             borderRadius: borderRadius,
           ),
@@ -562,10 +780,16 @@ class _SearchPageState extends State<SearchPage> {
               key: listItemKey('search_radio_station', index, station),
               station: station,
               onPressed: () async {
+                final resolvedInfo = await pluginManager.getStreamUrlForStation(
+                  station.id,
+                  station.streamUrl,
+                );
+                final finalUrl = resolvedInfo['url']?.toString() ?? station.streamUrl;
+
                 final success = await audioHandler.playRadioStream(
                   id: station.id,
                   name: station.name,
-                  streamUrl: station.streamUrl,
+                  streamUrl: finalUrl,
                   image: station.image,
                   genre: station.genre,
                 );
@@ -580,28 +804,7 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     return Column(
-      key: ValueKey(
-        'results-${_songsSearchResult.length}-${_artistsSearchResult.length}-${_albumsSearchResult.length}-${_playlistsSearchResult.length}',
-      ),
       children: widgets,
-    );
-  }
-
-  Future<bool?> _showConfirmationDialog(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return ConfirmationDialog(
-          confirmationMessage: context.l10n!.removeSearchQueryQuestion,
-          submitMessage: context.l10n!.confirm,
-          onCancel: () {
-            Navigator.of(context).pop(false);
-          },
-          onSubmit: () {
-            Navigator.of(context).pop(true);
-          },
-        );
-      },
     );
   }
 }

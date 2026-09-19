@@ -25,26 +25,77 @@ import 'package:musify/extensions/l10n.dart';
 import 'package:musify/main.dart';
 import 'package:musify/models/radio_model.dart';
 import 'package:musify/services/common_services.dart';
+import 'package:musify/services/plugin_manager.dart';
 import 'package:musify/utilities/flutter_toast.dart';
 import 'package:musify/widgets/mini_player_bottom_space.dart';
 import 'package:musify/widgets/radio_station_card.dart';
 
-class RadioStationsPage extends StatelessWidget {
+class RadioStationsPage extends StatefulWidget {
   const RadioStationsPage({super.key});
+
+  @override
+  State<RadioStationsPage> createState() => _RadioStationsPageState();
+}
+
+class _RadioStationsPageState extends State<RadioStationsPage> {
+  List<RadioStation> _pluginStations = [];
+  bool _loadingPlugins = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPluginRadioStations();
+  }
+
+  Future<void> _loadPluginRadioStations() async {
+    try {
+      final rawStations = await pluginManager.getRadioStationsFromPlugins();
+      if (mounted) {
+        setState(() {
+          _pluginStations = rawStations.map((map) {
+            return RadioStation(
+              id: map['id']?.toString() ?? '',
+              name: map['title']?.toString() ?? map['name']?.toString() ?? 'Radio Plugin',
+              image: map['image']?.toString() ?? '',
+              streamUrl: map['streamUrl']?.toString() ?? '',
+              genre: map['genre']?.toString() ?? map['artist']?.toString(),
+            );
+          }).where((s) => s.streamUrl.isNotEmpty).toList();
+          _loadingPlugins = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadingPlugins = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(context.l10n!.radioStations)),
+      appBar: AppBar(
+        title: Text(context.l10n!.radioStations),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() => _loadingPlugins = true);
+              _loadPluginRadioStations();
+            },
+          ),
+        ],
+      ),
       body: ValueListenableBuilder(
         valueListenable: userLikedRadioStations,
         builder: (context, likedStations, _) {
+          final allStations = [...radioStationsDB, ..._pluginStations];
           final stations = _sortWithLikedFirst(
-            radioStationsDB,
+            allStations,
             likedStations.toSet(),
           );
 
-          if (stations.isEmpty) {
+          if (stations.isEmpty && !_loadingPlugins) {
             return Center(child: Text(context.l10n!.noRadioStations));
           }
 
@@ -52,6 +103,11 @@ class RadioStationsPage extends StatelessWidget {
             padding: commonSingleChildScrollViewPadding,
             child: Column(
               children: [
+                if (_loadingPlugins)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: CircularProgressIndicator(),
+                  ),
                 ...List.generate(stations.length, (index) {
                   final station = stations[index];
                   return Padding(
@@ -60,10 +116,16 @@ class RadioStationsPage extends StatelessWidget {
                     child: RadioStationCard(
                       station: station,
                       onPressed: () async {
+                        final resolvedInfo = await pluginManager.getStreamUrlForStation(
+                          station.id,
+                          station.streamUrl,
+                        );
+                        final finalUrl = resolvedInfo['url']?.toString() ?? station.streamUrl;
+
                         final success = await audioHandler.playRadioStream(
                           id: station.id,
                           name: station.name,
-                          streamUrl: station.streamUrl,
+                          streamUrl: finalUrl,
                           image: station.image,
                           genre: station.genre,
                         );

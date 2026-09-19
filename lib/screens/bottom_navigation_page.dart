@@ -78,15 +78,21 @@ class _BottomNavigationPageState extends State<BottomNavigationPage> {
 
           return LayoutBuilder(
             builder: (context, constraints) {
-              final isLargeScreen = MediaQuery.of(context).size.width >= 600;
+              final size = MediaQuery.of(context).size;
+              final isLandscape = size.width > size.height;
+              final showNavigationRail = isLandscape;
               final items = _getNavigationItems(isOfflineMode);
 
               return Scaffold(
                 body: SafeArea(
                   child: Row(
                     children: [
-                      if (isLargeScreen)
+                      if (showNavigationRail)
                         NavigationRail(
+                          leading: const Padding(
+                            padding: EdgeInsets.only(top: 16, bottom: 12),
+                            child: Icon(FluentIcons.music_note_1_24_filled, size: 28),
+                          ),
                           labelType: NavigationRailLabelType.selected,
                           destinations: items
                               .map(
@@ -139,7 +145,7 @@ class _BottomNavigationPageState extends State<BottomNavigationPage> {
                     ],
                   ),
                 ),
-                bottomNavigationBar: !isLargeScreen
+                bottomNavigationBar: !showNavigationRail
                     ? NavigationBar(
                         selectedIndex: _getCurrentIndex(items, isOfflineMode),
                         labelBehavior: languageSetting == const Locale('en', '')

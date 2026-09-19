@@ -103,7 +103,9 @@ class PlaylistHeader extends StatelessWidget {
               if (songsLength != null)
                 _Chip(
                   icon: FluentIcons.text_bullet_list_24_filled,
-                  label: '$songsLength ${context.l10n!.songs}',
+                  label: title == 'Liked Items' || title.contains('Streaming') || title.contains('Elementos')
+                      ? '$songsLength Elementos'
+                      : '$songsLength ${context.l10n!.songs}',
                   color: colorScheme.secondaryContainer,
                   onColor: colorScheme.onSecondaryContainer,
                   theme: theme,

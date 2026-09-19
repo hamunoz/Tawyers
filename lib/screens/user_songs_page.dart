@@ -5,31 +5,20 @@
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
- *
- *     Musify is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- *
- *     For more information about Musify, including how to contribute,
- *     please visit: https://github.com/gokadzev/Musify
  */
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:musify/constants/app_constants.dart';
 import 'package:musify/extensions/l10n.dart';
-import 'package:musify/main.dart' show logger, audioHandler;
+import 'package:musify/main.dart' show audioHandler;
+import 'package:musify/models/radio_model.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/data_manager.dart';
+import 'package:musify/services/plugin_manager.dart';
 import 'package:musify/services/settings_manager.dart';
 import 'package:musify/utilities/app_utils.dart';
 import 'package:musify/utilities/flutter_toast.dart';
-import 'package:musify/utilities/playlist_utils.dart';
 import 'package:musify/utilities/song_filtering.dart';
 import 'package:musify/widgets/confirmation_dialog.dart';
 import 'package:musify/widgets/mini_player_bottom_space.dart';
@@ -38,6 +27,7 @@ import 'package:musify/widgets/playlist_page/empty_playlist_state.dart';
 import 'package:musify/widgets/playlist_page/playlist_header.dart';
 import 'package:musify/widgets/playlist_page/playlist_sliver_app_bar.dart';
 import 'package:musify/widgets/playlist_page/search_bar_section.dart';
+import 'package:musify/widgets/radio_station_card.dart';
 import 'package:musify/widgets/song_bar.dart';
 import 'package:musify/widgets/sort_chips.dart';
 
@@ -86,21 +76,35 @@ class _UserSongsPageState extends State<UserSongsPage> {
     final icon = getIcon(widget.page);
     final isOfflineSongs = title == context.l10n!.offlineSongs;
 
+    final isLikedItems = widget.page == 'liked';
+
     return Scaffold(
       body: Padding(
         padding: commonSingleChildScrollViewPadding,
-        child: ValueListenableBuilder(
-          valueListenable: widget.page == 'liked'
-              ? userLikedSongsList
-              : widget.page == 'offline'
-              ? userOfflineSongs
-              : userRecentlyPlayed,
-          builder: (_, songsList, __) => _buildCustomScrollView(
-            title,
-            icon,
-            songsList.length,
-            isOfflineSongs,
-          ),
+        child: AnimatedBuilder(
+          animation: Listenable.merge([
+            userLikedSongsList,
+            userLikedRadioStationsData,
+            userOfflineSongs,
+            userRecentlyPlayedStreams,
+            userRecentlyPlayed,
+          ]),
+          builder: (context, _) {
+            final songsList = isLikedItems
+                ? [...userLikedSongsList.value, ...userLikedRadioStationsData.value]
+                : widget.page == 'offline'
+                ? userOfflineSongs.value
+                : widget.page == 'recentStreams'
+                ? userRecentlyPlayedStreams.value
+                : userRecentlyPlayed.value;
+
+            return _buildCustomScrollView(
+              title,
+              icon,
+              songsList.length,
+              isOfflineSongs,
+            );
+          },
         ),
       ),
     );
@@ -146,9 +150,10 @@ class _UserSongsPageState extends State<UserSongsPage> {
 
   String getTitle(String page, BuildContext context) {
     return switch (page) {
-      'liked' => context.l10n!.likedSongs,
+      'liked' => 'Liked Items',
       'offline' => context.l10n!.offlineSongs,
-      'recents' => context.l10n!.recentlyPlayed,
+      'recents' => 'History Song',
+      'recentStreams' => 'History Streaming',
       _ => context.l10n!.playlist,
     };
   }
@@ -158,6 +163,7 @@ class _UserSongsPageState extends State<UserSongsPage> {
       'liked' => FluentIcons.heart_24_regular,
       'offline' => FluentIcons.cloud_off_24_regular,
       'recents' => FluentIcons.history_24_regular,
+      'recentStreams' => FluentIcons.live_24_regular,
       _ => FluentIcons.heart_24_regular,
     };
   }
@@ -169,7 +175,7 @@ class _UserSongsPageState extends State<UserSongsPage> {
     bool isOfflineSongs,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isRecentlyPlayed = title == context.l10n!.recentlyPlayed;
+    final isRecents = widget.page == 'recents' || widget.page == 'recentStreams';
 
     return Column(
       children: [
@@ -178,7 +184,7 @@ class _UserSongsPageState extends State<UserSongsPage> {
           songsLength: songsLength,
           showTitle: false,
         ),
-        if (songsLength > 0) ...[
+        if (songsLength > 0 && widget.page != 'recentStreams') ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
@@ -228,13 +234,16 @@ class _UserSongsPageState extends State<UserSongsPage> {
                           : widget.page == 'offline'
                           ? userOfflineSongs.value
                           : userRecentlyPlayed.value;
-                      if (songs.isEmpty) return;
-                      final shuffled = List<Map>.from(songs.whereType<Map>())
-                        ..shuffle();
-                      await audioHandler.addPlaylistToQueue(
-                        shuffled,
-                        replace: true,
-                        startIndex: 0,
+                      final shuffledSongs = List.from(songs)..shuffle();
+                      final playlist = {
+                        'ytid': '',
+                        'title': title,
+                        'source': 'user-created',
+                        'list': shuffledSongs,
+                      };
+                      await audioHandler.playPlaylistSong(
+                        playlist: playlist,
+                        songIndex: 0,
                       );
                     },
                   ),
@@ -242,13 +251,13 @@ class _UserSongsPageState extends State<UserSongsPage> {
               ],
             ),
           ),
-          if (isRecentlyPlayed) ...[
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [_buildClearRecentsButton(colorScheme.primary)],
-            ),
-          ],
+        ],
+        if (isRecents) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [_buildClearRecentsButton(colorScheme.primary)],
+          ),
         ],
         if (isOfflineSongs && songsLength > 1) ...[
           const SizedBox(height: 20),
@@ -297,8 +306,13 @@ class _UserSongsPageState extends State<UserSongsPage> {
               onCancel: () => Navigator.pop(context),
               onSubmit: () {
                 Navigator.pop(context);
-                userRecentlyPlayed.value = [];
-                addOrUpdateData<List>('user', 'recentlyPlayedSongs', []);
+                if (widget.page == 'recentStreams') {
+                  userRecentlyPlayedStreams.value = [];
+                  addOrUpdateData<List>('user', 'recentlyPlayedStreams', []);
+                } else {
+                  userRecentlyPlayed.value = [];
+                  addOrUpdateData<List>('user', 'recentlyPlayedSongs', []);
+                }
                 showToast(context, context.l10n!.recentlyPlayedMsg);
               },
             );
@@ -310,8 +324,8 @@ class _UserSongsPageState extends State<UserSongsPage> {
 
   Widget buildSongList(String title) {
     final isLikedSongs = title == context.l10n!.likedSongs;
-    final isRecentlyPlayed = title == context.l10n!.recentlyPlayed;
     final isOfflineSongs = title == context.l10n!.offlineSongs;
+    final isRecentStreams = widget.page == 'recentStreams';
 
     return ValueListenableBuilder<String>(
       valueListenable: _searchQueryNotifier,
@@ -320,27 +334,18 @@ class _UserSongsPageState extends State<UserSongsPage> {
             ? userLikedSongsList.value
             : widget.page == 'offline'
             ? userOfflineSongs.value
+            : widget.page == 'recentStreams'
+            ? userRecentlyPlayedStreams.value
             : userRecentlyPlayed.value;
-        final listKeyScope = 'user_song_${widget.page}';
+
         final isSearching = searchQuery.isNotEmpty;
         final displayList = _getDisplayList(songsList);
-        var sortedList = songsList;
-        if (isOfflineSongs) {
-          sortedList = _sortOfflineSongsLocal(
-            songsList,
-            _getCurrentOfflineSortType(),
-          );
-        }
-        final playlist = {
-          'ytid': '',
-          'title': title,
-          'source': 'user-created',
-          'list': sortedList,
-        };
 
         if (displayList.isEmpty) {
           final emptyIcon = isLikedSongs
               ? FluentIcons.heart_24_regular
+              : isRecentStreams
+              ? FluentIcons.live_24_regular
               : FluentIcons.text_bullet_list_24_filled;
           return EmptyPlaylistState(
             icon: emptyIcon,
@@ -348,21 +353,137 @@ class _UserSongsPageState extends State<UserSongsPage> {
           );
         }
 
+        if (isRecentStreams) {
+          return SliverList.builder(
+            itemCount: displayList.length,
+            itemBuilder: (context, index) {
+              final map = displayList[index] as Map;
+              final streamId = map['id']?.toString() ?? '';
+              final station = RadioStation(
+                id: streamId,
+                name: map['title']?.toString() ?? 'Stream',
+                image: map['image']?.toString() ?? '',
+                streamUrl: map['streamUrl']?.toString() ?? '',
+                genre: map['artist']?.toString(),
+              );
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Dismissible(
+                  key: ValueKey('stream_$streamId'),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      FluentIcons.delete_24_regular,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                  ),
+                  onDismissed: (_) {
+                    final updated = List.from(userRecentlyPlayedStreams.value)
+                      ..removeWhere((i) => i['id'] == streamId);
+                    userRecentlyPlayedStreams.value = updated;
+                    addOrUpdateData<List>('user', 'recentlyPlayedStreams', updated);
+                  },
+                  child: RadioStationCard(
+                    station: station,
+                    onPressed: () async {
+                      final resolvedInfo = await pluginManager.getStreamUrlForStation(
+                        station.id,
+                        station.streamUrl,
+                      );
+                      final finalUrl = resolvedInfo['url']?.toString() ?? station.streamUrl;
+
+                      await audioHandler.playRadioStream(
+                        id: station.id,
+                        name: station.name,
+                        streamUrl: finalUrl,
+                        image: station.image,
+                        genre: station.genre,
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          );
+        }
+
+        var sortedList = songsList;
+        if (isOfflineSongs) {
+          sortedList = _sortOfflineSongsLocal(
+            songsList,
+            _getCurrentOfflineSortType(),
+          );
+        }
+
+        final isRecentsSong = widget.page == 'recents';
+
         return SliverList(
           key: isOfflineSongs && !isSearching
               ? ValueKey(_getCurrentOfflineSortType())
               : null,
           delegate: SliverChildBuilderDelegate((context, index) {
             final song = displayList[index];
+            final songMap = song is Map ? Map<String, dynamic>.from(song) : {};
+            final isStream = songMap['isLive'] == true || (songMap['id']?.toString().contains(':') ?? false);
+
+            if (isStream) {
+              final station = RadioStation(
+                id: songMap['id']?.toString() ?? '',
+                name: songMap['title']?.toString() ?? 'Stream',
+                image: songMap['image']?.toString() ?? songMap['highResImage']?.toString() ?? '',
+                streamUrl: songMap['streamUrl']?.toString() ?? '',
+                genre: songMap['artist']?.toString(),
+              );
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: RadioStationCard(
+                  station: station,
+                  onPressed: () async {
+                    final resolvedInfo = await pluginManager.getStreamUrlForStation(
+                      station.id,
+                      station.streamUrl,
+                    );
+                    final finalUrl = resolvedInfo['url']?.toString() ?? station.streamUrl;
+
+                    await audioHandler.playRadioStream(
+                      id: station.id,
+                      name: station.name,
+                      streamUrl: finalUrl,
+                      image: station.image,
+                      genre: station.genre,
+                    );
+                  },
+                ),
+              );
+            }
+
             final borderRadius = getItemBorderRadius(index, displayList.length);
             return RepaintBoundary(
-              key: listItemKey(listKeyScope, index, song),
-              child: _buildSongBar(
+              child: SongBar(
                 song,
-                index,
-                borderRadius,
-                playlist,
-                isRecentSong: isRecentlyPlayed,
+                false,
+                key: listItemKey('user_song_${widget.page}', index, song),
+                onPlay: () {
+                  audioHandler.playPlaylistSong(
+                    playlist: {
+                      'title': title,
+                      'list': sortedList,
+                    },
+                    songIndex: index,
+                  );
+                },
+                onRemove: isRecentsSong
+                    ? () => removeFromRecentlyPlayed(song['ytid'])
+                    : null,
+                showMusicDuration: true,
+                borderRadius: borderRadius,
               ),
             );
           }, childCount: displayList.length),
@@ -371,76 +492,44 @@ class _UserSongsPageState extends State<UserSongsPage> {
     );
   }
 
-  Widget _buildSongBar(
-    Map song,
-    int index,
-    BorderRadius borderRadius,
-    Map playlist, {
-    bool isRecentSong = false,
-  }) {
-    final isLikedSongs = playlist['title'] == context.l10n!.likedSongs;
-
-    return SongBar(
-      key: listItemKey('user_song', index, song),
-      song,
-      true,
-      onPlay: () {
-        final fullIndex = PlaylistUtils.findSongIndexByYtid(
-          playlist,
-          song['ytid'],
-        );
-        if (fullIndex == -1) {
-          logger.log(
-            'Warning: Song ${song['ytid']} not found in full song list',
-          );
-        }
-        audioHandler.playPlaylistSong(
-          playlist: playlist,
-          songIndex: fullIndex != -1 ? fullIndex : index,
-        );
-      },
-      borderRadius: borderRadius,
-      isRecentSong: isRecentSong,
-      isFromLikedSongs: isLikedSongs,
-    );
-  }
-
   String _getSortTypeDisplayText(OfflineSortType type) {
     return switch (type) {
       OfflineSortType.default_ => context.l10n!.default_,
-      OfflineSortType.title => context.l10n!.name,
+      OfflineSortType.title => 'Título',
       OfflineSortType.artist => context.l10n!.artist,
       OfflineSortType.dateAdded => context.l10n!.dateAdded,
     };
   }
+}
 
-  List _sortOfflineSongsLocal(List list, OfflineSortType type) {
-    final sortedList = List<dynamic>.from(list);
-    switch (type) {
-      case OfflineSortType.default_:
-        return sortedList;
-      case OfflineSortType.title:
-        sortedList.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
-          return titleA.compareTo(titleB);
-        });
-        break;
-      case OfflineSortType.artist:
-        sortedList.sort((a, b) {
-          final artistA = (a['artist'] ?? '').toString().toLowerCase();
-          final artistB = (b['artist'] ?? '').toString().toLowerCase();
-          return artistA.compareTo(artistB);
-        });
-        break;
-      case OfflineSortType.dateAdded:
-        sortedList.sort((a, b) {
-          final dateA = a['dateAdded'] as int? ?? 0;
-          final dateB = b['dateAdded'] as int? ?? 0;
-          return dateB.compareTo(dateA);
-        });
-        break;
-    }
-    return sortedList;
+List _sortOfflineSongsLocal(List songsList, OfflineSortType sortType) {
+  final sortedList = List.from(songsList);
+
+  switch (sortType) {
+    case OfflineSortType.title:
+      sortedList.sort(
+        (a, b) => (a['title'] ?? '').toString().toLowerCase().compareTo(
+          (b['title'] ?? '').toString().toLowerCase(),
+        ),
+      );
+    case OfflineSortType.artist:
+      sortedList.sort(
+        (a, b) => (a['artist'] ?? '').toString().toLowerCase().compareTo(
+          (b['artist'] ?? '').toString().toLowerCase(),
+        ),
+      );
+    case OfflineSortType.dateAdded:
+      sortedList.sort((a, b) {
+        final aDate = a['dateAdded'] as DateTime?;
+        final bDate = b['dateAdded'] as DateTime?;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
+    case OfflineSortType.default_:
+      break;
   }
+
+  return sortedList;
 }

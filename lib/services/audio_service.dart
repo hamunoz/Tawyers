@@ -2634,6 +2634,17 @@ class MusifyAudioHandler extends BaseAudioHandler {
         'isLive': true,
       };
 
+      // Registra el stream reproducido en userRecentlyPlayedStreams
+      unawaited(
+        updateRecentlyPlayedStream(
+          id: id,
+          name: name,
+          streamUrl: streamUrl,
+          image: image,
+          genre: genre,
+        ),
+      );
+
       _lastError = null;
       final wasPlayingBeforeSwap = audioPlayer.playing;
       if (audioPlayer.playing) {

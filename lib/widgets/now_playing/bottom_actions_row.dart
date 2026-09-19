@@ -152,7 +152,7 @@ class _BottomActionsRowState extends State<BottomActionsRow> {
               tooltip: l10n.makeOffline,
             ),
           _buildSleepTimerButton(context, colorScheme, responsiveIconSize),
-          if (!offlineMode.value && !isRadioStation)
+          if (!offlineMode.value)
             _buildSimpleActionButton(
               context: context,
               icon: FluentIcons.album_add_24_regular,
@@ -164,7 +164,7 @@ class _BottomActionsRowState extends State<BottomActionsRow> {
               ),
               tooltip: l10n.addToPlaylist,
             ),
-          if (queue.isNotEmpty && !isRadioStation && !widget.isLargeScreen)
+          if (queue.isNotEmpty && !isRadioStation)
             _buildSimpleActionButton(
               context: context,
               icon: FluentIcons.apps_list_24_filled,
@@ -199,25 +199,26 @@ class _BottomActionsRowState extends State<BottomActionsRow> {
                 if (id == null) return;
 
                 final originalValue = _songLikeStatus.value;
-                _songLikeStatus.value = !originalValue;
-
-                try {
-                  if (isRadioStation) {
-                    if (originalValue) {
+                if (originalValue) {
+                  _songLikeStatus.value = false;
+                  try {
+                    if (isRadioStation) {
                       await removeRadioStationFromLiked(id);
                     } else {
-                      await addRadioStationToLiked(id);
+                      await updateSongLikeStatus(
+                        audioId,
+                        false,
+                        songData: mediaItemToMap(widget.metadata),
+                      );
                     }
-                  } else {
-                    await updateSongLikeStatus(
-                      audioId,
-                      !originalValue,
-                      songData: mediaItemToMap(widget.metadata),
-                    );
+                  } catch (e) {
+                    _songLikeStatus.value = true;
                   }
-                } catch (e) {
-                  _songLikeStatus.value = originalValue; // revert on failure
-                  logger.log('Error toggling like status', error: e);
+                } else {
+                  showAddToPlaylistDialog(
+                    context,
+                    song: mediaItemToMap(widget.metadata),
+                  );
                 }
               },
               tooltip: l10n.likedSongs,
