@@ -256,11 +256,23 @@ String addSongInCustomPlaylist(
   if (customPlaylist != null) {
     final songMap = Map<String, dynamic>.from(song);
     final songId = songMap['ytid']?.toString() ?? songMap['id']?.toString() ?? '';
+    final name = songMap['title']?.toString() ?? songMap['name']?.toString() ?? 'Stream';
+    final streamUrl = songMap['streamUrl']?.toString() ?? songMap['audioUrl']?.toString() ?? '';
+    final image = songMap['image']?.toString() ?? songMap['highResImage']?.toString() ?? '';
+    final artist = songMap['artist']?.toString() ?? songMap['genre']?.toString() ?? '';
+    final isLive = songMap['isLive'] == true || songId.contains(':');
+
     songMap['ytid'] = songId;
     songMap['id'] = songId;
-    if (songMap['title'] == null && songMap['name'] != null) {
-      songMap['title'] = songMap['name'];
-    }
+    songMap['title'] = name;
+    songMap['name'] = name;
+    songMap['streamUrl'] = streamUrl;
+    songMap['audioUrl'] = streamUrl;
+    songMap['image'] = image;
+    songMap['highResImage'] = image;
+    songMap['artist'] = artist;
+    songMap['genre'] = artist;
+    songMap['isLive'] = isLive;
 
     final List<dynamic> playlistSongs = customPlaylist['list'];
     if (songId.isNotEmpty &&

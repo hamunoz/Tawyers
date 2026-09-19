@@ -28,9 +28,7 @@ import 'package:flutter/widgets.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:musify/constants/clients.dart';
-import 'package:musify/database/radio_stations.db.dart';
 import 'package:musify/main.dart' show logger;
-import 'package:musify/models/radio_model.dart';
 import 'package:musify/services/data_manager.dart';
 import 'package:musify/services/io_service.dart';
 import 'package:musify/services/lyrics_manager.dart';
@@ -555,47 +553,36 @@ Future<void> addRadioStationToLiked(String radioStationId, {Map? stationData}) a
     );
   }
 
-  var mapToSave = stationData;
-  if (mapToSave == null) {
-    final dbMatch = radioStationsDB.firstWhere(
-      (s) => s.id == radioStationId,
-      orElse: () => const RadioStation(id: '', name: '', image: '', streamUrl: ''),
-    );
-    if (dbMatch.id.isNotEmpty) {
-      mapToSave = {
-        'id': dbMatch.id,
-        'ytid': dbMatch.id,
-        'title': dbMatch.name,
-        'artist': dbMatch.genre ?? 'Radio Station',
-        'image': dbMatch.image,
-        'streamUrl': dbMatch.streamUrl,
-        'isLive': true,
-      };
-    } else {
-      mapToSave = {
-        'id': radioStationId,
-        'ytid': radioStationId,
-        'title': radioStationId,
-        'artist': 'Radio Stream',
-        'image': '',
-        'streamUrl': '',
-        'isLive': true,
-      };
-    }
-  }
+  final mapToSave = stationData != null ? Map<String, dynamic>.from(stationData) : <String, dynamic>{};
+  final id = mapToSave['id']?.toString() ?? mapToSave['ytid']?.toString() ?? radioStationId;
+  final name = mapToSave['title']?.toString() ?? mapToSave['name']?.toString() ?? radioStationId;
+  final streamUrl = mapToSave['streamUrl']?.toString() ?? mapToSave['audioUrl']?.toString() ?? '';
+  final image = mapToSave['image']?.toString() ?? mapToSave['highResImage']?.toString() ?? '';
+  final artist = mapToSave['artist']?.toString() ?? mapToSave['genre']?.toString() ?? 'Radio Station';
+
+  final normalizedMap = {
+    'id': id,
+    'ytid': id,
+    'title': name,
+    'name': name,
+    'image': image,
+    'highResImage': image,
+    'streamUrl': streamUrl,
+    'audioUrl': streamUrl,
+    'artist': artist,
+    'genre': artist,
+    'isLive': true,
+  };
 
   final updatedData = List<Map>.from(userLikedRadioStationsData.value);
-  final id = mapToSave['id']?.toString() ?? mapToSave['ytid']?.toString() ?? radioStationId;
-  if (!updatedData.any((s) => s['id'] == id || s['ytid'] == id)) {
-    final newMap = Map<String, dynamic>.from(mapToSave);
-    newMap['id'] = id;
-    newMap['ytid'] = id;
-    newMap['title'] = newMap['title'] ?? newMap['name'] ?? 'Radio Station';
-    newMap['isLive'] = true;
-    updatedData.add(newMap);
-    userLikedRadioStationsData.value = updatedData;
-    await addOrUpdateData<List>('user', 'likedRadioStationsData', updatedData);
+  final existingIndex = updatedData.indexWhere((s) => s['id'] == id || s['ytid'] == id);
+  if (existingIndex == -1) {
+    updatedData.add(normalizedMap);
+  } else {
+    updatedData[existingIndex] = normalizedMap;
   }
+  userLikedRadioStationsData.value = updatedData;
+  await addOrUpdateData<List>('user', 'likedRadioStationsData', updatedData);
 }
 
 Future<void> removeRadioStationFromLiked(String radioStationId) async {
