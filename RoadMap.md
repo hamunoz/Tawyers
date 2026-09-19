@@ -35,7 +35,7 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 ### 1.4 Arranque Instantáneo, Música Local y UI Adaptativa
 - [x] **Arranque ultra-rápido (<0.2s)**: La app abre en la Librería/Modo Local sin esperar respuestas de red.
 - [x] **`LocalMusicService` (`lib/services/local_music_service.dart`)**:
-  - Guardado de carpeta local en **Ajustes > Carpeta de Música Local** y escaneo recursivo de audio (`.mp3`, `.m4a`, `.flac`, `.wav`, `.aac`, `.ogg`).
+  - Guardado de carpeta local en **Ajustes > Carpeta de Música Local** y escaneo recursivo de audio (`.mp3`, `.m4a`, `.flac`, `.wav`, `.aac`, `.ogg`, `.webm`, etc.) con solicitud de permisos nativos Android 11+ (`permission_handler`).
 - [x] **Home con Píldoras / Tabs**:
   - Píldoras en la parte superior (`Offline`, `YouTube`, e íconos de plugins activos) con renderizado de contenido según la pestaña seleccionada.
 - [x] **Buscador Inteligente Multi-Fuente (`SearchPage`)**:
@@ -43,10 +43,11 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
   - Ocultamiento inmediato de sugerencias al presionar *Enter* y timer de seguridad de 7s para el spinner.
 - [x] **Reproductor Inmersivo Adaptativo (`NowPlayingPage`)**:
   - Distinción visual para **`TRANSMISIÓN EN VIVO`** (desactiva skip/repeat/lyrics/descargas pero permite guardar en biblioteca y agregar a favoritos).
+  - Animación de marquesina (*Marquee*) suavizada y pausada (3s de pausa en cada extremo).
 - [x] **MiniPlayer Flotante**:
-  - Botón de **Corazón / Favorito** directo en la barra flotante.
+  - Botón de **Corazón / Favorito** directo en la barra flotante con indicador dinámico de biblioteca.
 - [x] **Librería y Modal "Guardar en..."**:
-  - Modal emergente con la opción por defecto **`Raíz de la Librería (Liked Items)`** y botón **Aceptar**.
+  - Modal emergente con la opción por defecto **`Liked Items (Raíz de Librería)`** y botón **Aceptar** inteligente.
   - Lista de **`Liked Items`** (Elementos Favoritos) que reúne canciones y emisoras.
   - Historiales separados: **`History Song`** y **`History Streaming`** (con opción de deslizar para eliminar `Dismissible`).
 - [x] **Navegación Adaptativa para Tablets (`BottomNavigationPage`)**:
@@ -99,10 +100,12 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 - [ ] **Módulo de YouTube como Plugin JS**:
   - Convertir la lógica de extracción de YouTube a un plugin `youtube.js` desacoplado.
 
-### 3.3 Metadatos ICY/Shoutcast en Vivo para Streaming
+### 3.3 Metadatos ICY/Shoutcast en Vivo y Letras (Lyrics) para Streaming
 - [ ] **Parsing de Metadatos ICY/ID3 en Vivo**:
   - Integrar parsing de metadatos de transmisiones de audio en vivo (cabecera ICY `StreamTitle` / ID3v2 tags en streams Icecast/Shoutcast/HLS) usando librerías como `music-metadata`.
   - Actualizar en tiempo real el título de la canción que está sonando en vivo en la radio dentro de la pantalla **Now Playing** y **MiniPlayer**.
+- [ ] **Letras Sincronizadas (LRC) en Vivo para Radios**:
+  - Al extraer el título y artista del `StreamTitle` de la radio en tiempo real (ej. *"Dua Lipa - Levitating"*), consultar automáticamente `LyricsManager` / LRCLIB para mostrar las letras sincronizadas en vivo de la canción que está sonando en la emisora.
 
 ### 3.4 Respaldo y Persistencia
 - [ ] **Respaldo Automático en Nube (Google Drive)**:
