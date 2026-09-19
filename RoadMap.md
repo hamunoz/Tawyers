@@ -84,7 +84,7 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 
 ---
 
-## 🟡 Fase 3: Futuras Mejoras de Branding y Nube (Backlog)
+## 🟡 Fase 3: Futuras Mejoras de Branding, Nube y Metadatos en Vivo (Backlog)
 
 ### 3.1 Branding & Identidad Visual
 - [ ] **Rediseño del Ícono Principal ("T" de Tawyers)**:
@@ -99,6 +99,11 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 - [ ] **Módulo de YouTube como Plugin JS**:
   - Convertir la lógica de extracción de YouTube a un plugin `youtube.js` desacoplado.
 
-### 3.3 Respaldo y Persistencia
+### 3.3 Metadatos ICY/Shoutcast en Vivo para Streaming
+- [ ] **Parsing de Metadatos ICY/ID3 en Vivo**:
+  - Integrar parsing de metadatos de transmisiones de audio en vivo (cabecera ICY `StreamTitle` / ID3v2 tags en streams Icecast/Shoutcast/HLS) usando librerías como `music-metadata`.
+  - Actualizar en tiempo real el título de la canción que está sonando en vivo en la radio dentro de la pantalla **Now Playing** y **MiniPlayer**.
+
+### 3.4 Respaldo y Persistencia
 - [ ] **Respaldo Automático en Nube (Google Drive)**:
   - Sincronización transparente de `user.hive` en Google Drive.
