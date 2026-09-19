@@ -331,7 +331,7 @@ class _UserSongsPageState extends State<UserSongsPage> {
       valueListenable: _searchQueryNotifier,
       builder: (_, searchQuery, __) {
         final songsList = widget.page == 'liked'
-            ? userLikedSongsList.value
+            ? [...userLikedSongsList.value, ...userLikedRadioStationsData.value]
             : widget.page == 'offline'
             ? userOfflineSongs.value
             : widget.page == 'recentStreams'
