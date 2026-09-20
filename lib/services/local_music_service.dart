@@ -88,10 +88,12 @@ class LocalMusicService {
         await _requestStoragePermissions();
         final result = await _platform.invokeMethod('queryLocalSongs');
         if (result != null) {
-          final list = result.map((e) => Map<String, dynamic>.from(e)).toList();
+          final list = (result as List).map((e) => Map<String, dynamic>.from(e)).toList();
           debugPrint('⚡ [MEDIASTORE_KOTLIN] ${list.length} canciones cargadas en <10ms desde MediaStore nativo!');
           return list;
         }
+      } on MissingPluginException {
+        debugPrint('ℹ️ [MEDIASTORE] No disponible en este sistema operativo. Usando escáner de archivos.');
       } catch (e) {
         debugPrint('⚠️ [MEDIASTORE_KOTLIN] Error consultando MediaStore nativo: $e');
       }
