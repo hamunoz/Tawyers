@@ -54,7 +54,8 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 - [x] **Navegación Adaptativa para Tablets (`BottomNavigationPage`)**:
   - Modo Retrato: Menú de navegación abajo (`NavigationBar`).
   - Modo Panorámica/Horizontal: Menú lateral izquierdo (`NavigationRail`) con padding superior.
-- [x] **Internacionalización Completa (i18n)**:
+- [x] **Branding e Internacionalización Completa**:
+  - Nombre oficial actualizado a **`Tawyers`** en el encabezado principal y pantalla Acerca De.
   - Todas las cadenas traducidas en `app_en.arb` y `app_es.arb` para evitar mezcla de idiomas.
 
 ---
@@ -108,10 +109,11 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 - [ ] **Letras Sincronizadas (LRC) en Vivo para Radios**:
   - Al extraer el título y artista del `StreamTitle` de la radio en tiempo real (ej. *"Dua Lipa - Levitating"*), consultar automáticamente `LyricsManager` / LRCLIB para mostrar las letras sincronizadas en vivo de la canción que está sonando en la emisora.
 
-### 3.4 Extracción de Metadatos ID3 para Archivos de Música Local
-- [ ] **Lectura de Etiquetas ID3v2 / MP4 / FLAC en Archivos Locales**:
-  - Extraer automáticamente el **Título real**, **Artista/Cantante**, **Álbum** y **Duración exacta** de cada archivo MP3/M4A/FLAC/WEBM.
-  - Extraer y renderizar la **Carátula/Cover oficial incrustada** dentro del archivo de audio para mostrarla en las tarjetas, MiniPlayer y pantalla Now Playing.
+### 3.4 Extracción de Metadatos ID3 para Archivos de Música Local (TagLib)
+- [ ] **Lectura de Etiquetas ID3v1/ID3v2/MP4/FLAC con TagLib FFI**:
+  - Integrar el binding FFI C++ de **TagLib** (`github.com/rRemix/taglib`) para una lectura ultrarrápida de metadatos locales sin sobrecargar el hilo principal.
+  - Extraer automáticamente el **Título real**, **Artista/Cantante/Autor**, **Álbum**, **Año** y **Duración exacta** de cada archivo MP3/M4A/FLAC/WEBM/WAV.
+  - Extraer los bytes de la **Carátula/Cover oficial incrustada** (cuadro APIC/Picture) para renderizarla en las tarjetas, MiniPlayer y pantalla Now Playing.
 
 ### 3.5 Respaldo y Persistencia
 - [ ] **Respaldo Automático en Nube (Google Drive)**:
