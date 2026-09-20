@@ -46,7 +46,7 @@ MediaItem mapToMediaItem(Map song) {
   } else if (imageStr.isNotEmpty && (imageStr.startsWith('/') || imageStr.startsWith('file://'))) {
     artUri = Uri.file(imageStr.replaceFirst('file://', ''));
   } else {
-    artUri = Uri.parse('https://raw.githubusercontent.com/gokadzev/Musify/main/assets/icons/musify_icon.png');
+    artUri = Uri.file('');
   }
 
   return MediaItem(

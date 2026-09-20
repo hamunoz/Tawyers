@@ -7,7 +7,6 @@
  *     (at your option) any later version.
  */
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -149,23 +148,18 @@ class LocalMusicService {
 
           final al = meta['Album']?.toString() ?? meta['TALB']?.toString();
           if (al != null && al.trim().isNotEmpty) album = al.trim();
-
-          if (meta['APIC'] is Map) {
-            final apicMap = meta['APIC'] as Map;
-            final base64Str = apicMap['base64']?.toString();
-            if (base64Str != null && base64Str.isNotEmpty) {
-              final imgBytes = base64Decode(base64Str);
-              if (imgBytes.isNotEmpty) {
-                final cacheDir = await getTemporaryDirectory();
-                final coverFile = File('${cacheDir.path}/cover_${path.hashCode}.jpg');
-                if (!await coverFile.exists()) {
-                  await coverFile.writeAsBytes(imgBytes);
-                }
-                artworkPath = coverFile.path;
-              }
-            }
-          }
         }
+      }
+
+      final coverBytes = _extractEmbeddedCoverBytes(bytes);
+      if (coverBytes != null && coverBytes.isNotEmpty) {
+        final cacheDir = await getTemporaryDirectory();
+        final coverFile = File('${cacheDir.path}/cover_${path.hashCode}.jpg');
+        if (!await coverFile.exists()) {
+          await coverFile.writeAsBytes(coverBytes);
+        }
+        artworkPath = coverFile.path;
+        debugPrint('🖼️ [LOCAL_COVER] Carátula incrustada extraída para $fileName (${coverBytes.length} bytes)');
       }
     } catch (e) {
       debugPrint('⚠️ [LOCAL_MUSIC] Error leyendo etiquetas ID3 de $path: $e');
@@ -187,6 +181,45 @@ class LocalMusicService {
       'isOffline': true,
       'duration': duration,
     };
+  }
+
+  Uint8List? _extractEmbeddedCoverBytes(Uint8List bytes) {
+    try {
+      final searchLength = bytes.length < 2000000 ? bytes.length : 2000000;
+
+      // 1. Buscar cabecera JPEG (0xFF, 0xD8, 0xFF) hasta fin JPEG (0xFF, 0xD9)
+      for (var i = 0; i < searchLength - 4; i++) {
+        if (bytes[i] == 0xFF && bytes[i + 1] == 0xD8 && bytes[i + 2] == 0xFF) {
+          var end = -1;
+          for (var j = i + 10; j < searchLength - 1; j++) {
+            if (bytes[j] == 0xFF && bytes[j + 1] == 0xD9) {
+              end = j + 2;
+              break;
+            }
+          }
+          if (end != -1 && (end - i) > 1000) {
+            return bytes.sublist(i, end);
+          }
+        }
+      }
+
+      // 2. Buscar cabecera PNG (\x89PNG) hasta fin IEND
+      for (var i = 0; i < searchLength - 8; i++) {
+        if (bytes[i] == 0x89 && bytes[i + 1] == 0x50 && bytes[i + 2] == 0x4E && bytes[i + 3] == 0x47) {
+          var end = -1;
+          for (var j = i + 8; j < searchLength - 7; j++) {
+            if (bytes[j] == 0x49 && bytes[j + 1] == 0x45 && bytes[j + 2] == 0x4E && bytes[j + 3] == 0x44) {
+              end = j + 8;
+              break;
+            }
+          }
+          if (end != -1 && (end - i) > 1000) {
+            return bytes.sublist(i, end);
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> scanLocalMusicFolder(String folderPath) async {
