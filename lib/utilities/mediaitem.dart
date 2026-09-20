@@ -5,18 +5,6 @@
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
- *
- *     Musify is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
- *
- *     You should have received a copy of the GNU General Public License
- *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- *
- *     For more information about Musify, including how to contribute,
- *     please visit: https://github.com/gokadzev/Musify
  */
 
 import 'package:audio_service/audio_service.dart';
@@ -33,7 +21,7 @@ Map mediaItemToMap(MediaItem mediaItem) {
     'title': mediaItem.title,
     'artistId': extras?['artistId'],
     'videoAuthor': extras?['videoAuthor'],
-    'highResImage': extras?['highResImage'] ?? mediaItem.artUri.toString(),
+    'highResImage': extras?['highResImage'] ?? mediaItem.artUri?.toString() ?? '',
     'lowResImage': extras?['lowResImage'],
     'isLive': extras?['isLive'] ?? false,
     if (mediaItem.duration case final duration?) 'duration': duration.inSeconds,
@@ -47,39 +35,41 @@ MediaItem mapToMediaItem(Map song) {
       : <String, dynamic>{};
   final isOffline = offlineSong.isNotEmpty;
 
-  final artUri = isOffline && offlineSong['artworkPath'] != null
-      ? Uri.file(offlineSong['artworkPath'].toString())
-      : Uri.parse(song['highResImage'].toString());
+  final imageStr = song['highResImage']?.toString() ??
+      song['image']?.toString() ??
+      (isOffline ? offlineSong['artworkPath']?.toString() : null) ??
+      '';
+
+  late final Uri artUri;
+  if (imageStr.startsWith('http://') || imageStr.startsWith('https://')) {
+    artUri = Uri.parse(imageStr);
+  } else if (imageStr.isNotEmpty && (imageStr.startsWith('/') || imageStr.startsWith('file://'))) {
+    artUri = Uri.file(imageStr.replaceFirst('file://', ''));
+  } else {
+    artUri = Uri.parse('https://raw.githubusercontent.com/gokadzev/Musify/main/assets/icons/musify_icon.png');
+  }
 
   return MediaItem(
-    id: song['id'].toString(),
-    artist: song['artist'].toString().trim(),
-    title: song['title'].toString(),
+    id: song['id']?.toString() ?? song['ytid']?.toString() ?? '',
+    artist: song['artist']?.toString().trim() ?? 'Música Local',
+    title: song['title']?.toString() ?? song['name']?.toString() ?? 'Pista Local',
     artUri: artUri,
     duration: readMediaDuration(song['duration']),
     extras: {
       'lowResImage': song['lowResImage'],
-      'ytid': song['ytid'],
+      'ytid': song['ytid'] ?? song['id'],
       'artistId': song['artistId'],
       'videoAuthor': song['videoAuthor'],
-      'isLive': song['isLive'],
-      'highResImage': song['highResImage'],
-      'artWorkPath':
-          (isOffline ? offlineSong['artworkPath'] : song['highResImage'])
-              ?.toString() ??
-          '',
+      'isLive': song['isLive'] ?? false,
+      'highResImage': imageStr,
+      'artWorkPath': imageStr,
     },
   );
 }
 
-/// Compares two Duration objects with tolerance for minor differences.
-///
-/// This prevents unnecessary updates when duration values have minor variations
-/// (e.g., due to buffering or precision differences).
 bool durationEquals(Duration? prev, Duration? curr) {
   if (prev == curr) return true;
   if (prev == null || curr == null) return prev == curr;
 
-  // Consider durations equal if they differ by less than 1 second
   return (prev - curr).abs() < const Duration(seconds: 1);
 }

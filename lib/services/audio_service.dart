@@ -2339,6 +2339,16 @@ class MusifyAudioHandler extends BaseAudioHandler {
   }
 
   Future<_PlaybackSource?> _resolvePlaybackSource(Map songData) async {
+    final songId = songData['ytid']?.toString() ?? songData['id']?.toString() ?? '';
+    final isLocal = songData['isLocal'] == true || songData['isOffline'] == true || songId.startsWith('local_');
+
+    if (isLocal) {
+      final localPath = songData['audioPath']?.toString() ?? songData['audioUrl']?.toString() ?? songData['streamUrl']?.toString() ?? '';
+      if (localPath.isNotEmpty && File(localPath).existsSync()) {
+        return _PlaybackSource(songUrl: localPath, isOffline: true);
+      }
+    }
+
     final isOffline = await _resolveOfflineAndSetPaths(songData);
     if (!isOffline && offlineMode.value) {
       logger.log(
@@ -2350,14 +2360,16 @@ class MusifyAudioHandler extends BaseAudioHandler {
     final songUrl = await _getPlaybackUrl(songData, isOffline);
 
     if (songUrl == null || songUrl.isEmpty) {
+      if (isLocal) {
+        logger.log('Archivo local no encontrado en disco: $songId');
+        return null;
+      }
+
       if (!isOffline) {
         logger.log('Failed to get song URL for ${songData['ytid']}');
         return null;
       }
 
-      // If offline mode is enabled, do NOT fall back to online streams.
-      // This prevents network requests while the user explicitly requested
-      // offline-only operation.
       try {
         if (offlineMode.value) {
           logger.log(
@@ -2365,9 +2377,7 @@ class MusifyAudioHandler extends BaseAudioHandler {
           );
           return null;
         }
-      } catch (_) {
-        // If offlineMode isn't available for some reason, continue with fallback.
-      }
+      } catch (_) {}
 
       logger.log(
         'Offline file missing for ${songData['ytid']}, switching to online',

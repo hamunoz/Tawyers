@@ -359,20 +359,26 @@ class _SongBarState extends State<SongBar> {
     super.initState();
 
     // Cache frequently accessed values
-    _songTitle = widget.song['title'] ?? '';
+    _songTitle = widget.song['title'] ?? widget.song['name'] ?? '';
     _songArtist = widget.song['artist']?.toString() ?? '';
-    _artworkPath = _firstNonEmptyString([
+
+    final potentialImage = _firstNonEmptyString([
+      widget.song['image'],
+      widget.song['highResImage'],
+      widget.song['lowResImage'],
       widget.song['artworkPath'],
       widget.song['artWorkPath'],
-    ]);
-    _lowResImageUrl =
-        _firstNonEmptyString([
-          widget.song['lowResImage'],
-          widget.song['image'],
-          widget.song['highResImage'],
-        ]) ??
-        '';
-    _ytid = widget.song['ytid'] ?? '';
+    ]) ?? '';
+
+    if (potentialImage.startsWith('/') || potentialImage.startsWith('file://')) {
+      _artworkPath = potentialImage.replaceFirst('file://', '');
+      _lowResImageUrl = '';
+    } else {
+      _artworkPath = null;
+      _lowResImageUrl = potentialImage;
+    }
+
+    _ytid = widget.song['ytid'] ?? widget.song['id'] ?? '';
 
     // Initialize ValueNotifiers only once
     _songLikeStatus = ValueNotifier(isSongAlreadyLiked(_ytid));
