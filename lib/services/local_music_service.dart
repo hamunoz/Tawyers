@@ -142,9 +142,11 @@ class LocalMusicService {
           final lowerPath = path.toLowerCase();
           if (_supportedExtensions.any(lowerPath.endsWith)) {
             final fileName = path.split('/').last;
-            final title = fileName.contains('.')
+            var title = fileName.contains('.')
                 ? fileName.substring(0, fileName.lastIndexOf('.'))
                 : fileName;
+            // Limpia guiones bajos '_' por espacios limpios
+            title = title.replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 
             localSongs.add({
               'id': 'local_${path.hashCode}',
@@ -202,9 +204,11 @@ class LocalMusicService {
               final lowerPath = path.toLowerCase();
               if (_supportedExtensions.any(lowerPath.endsWith)) {
                 final fileName = path.split('/').last;
-                final title = fileName.contains('.')
+                var title = fileName.contains('.')
                     ? fileName.substring(0, fileName.lastIndexOf('.'))
                     : fileName;
+                // Limpia guiones bajos '_' por espacios limpios
+                title = title.replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 
                 localSongs.add({
                   'id': 'local_${path.hashCode}',

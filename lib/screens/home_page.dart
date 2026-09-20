@@ -117,7 +117,7 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Musify.'),
+        title: const Text('Tawyers'),
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.plug_connected_24_regular),
