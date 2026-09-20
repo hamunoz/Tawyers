@@ -32,11 +32,12 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 - [x] **`iptv_audio.js`**: Traducido de Echo IPTV (Parser `#EXTINF`, logos, géneros, cabeceras custom VLCOPT/EXTHTTP e índice `index.m3u`).
 - [x] **`radio_browser.js`**: Integración con el directorio abierto de RadioBrowser (Top 30 por países).
 
-### 1.4 Arranque Instantáneo, Música Local y UI Adaptativa
+### 1.4 Arranque Instantáneo, Música Local, Metadatos ID3 y UI Adaptativa
 - [x] **Arranque ultra-rápido (<0.2s)**: La app abre en la Librería/Modo Local sin esperar respuestas de red.
 - [x] **`LocalMusicService` (`lib/services/local_music_service.dart`)**:
   - Guardado de carpeta local en **Ajustes > Carpeta de Música Local** y escaneo recursivo de audio (`.mp3`, `.m4a`, `.flac`, `.wav`, `.aac`, `.ogg`, `.webm`, etc.) con solicitud de permisos nativos Android 11+ (`permission_handler`).
-  - Limpieza automática de guiones bajos (`_`) por espacios en los nombres de archivos.
+  - **Lectura e Inyección de Metadatos ID3 (`audiotags`)**: Extrae automáticamente Título real, Cantante/Artista, Álbum, Duración exacta y Carátula incrustada (portada en disco).
+  - Limpieza automática de guiones bajos (`_`) por espacios en nombres de archivos como respaldo.
 - [x] **Home con Píldoras / Tabs**:
   - Píldoras en la parte superior (`Offline`, `YouTube`, e íconos de plugins activos) con renderizado de contenido según la pestaña seleccionada.
 - [x] **Buscador Inteligente Multi-Fuente (`SearchPage`)**:
@@ -65,9 +66,9 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 > **Objetivo de la Fase 2**: Limpiar la deuda técnica, desacoplar dependencias globales y convertir los archivos monolíticos en módulos limpios, testeables e independientes. Esto es lo que marcará la diferencia en rendimiento, fluidez y mantenibilidad de la aplicación.
 
 ### 2.1 Inyección de Dependencias (DI)
-- [ ] **Introducción de contenedor DI (`GetIt`)**:
-  - Registrar todos los servicios (`AudioService`, `PluginManager`, `LocalMusicService`, `SettingsManager`) centralizadamente.
-  - Eliminar instancias globales sueltas como `audioHandler` o variables top-level globales.
+- [x] **Introducción de contenedor DI (`GetIt`)**:
+  - Creado [`lib/services/service_locator.dart`](file:///home/hamunoz/StudioProjects/Tawyers/lib/services/service_locator.dart) con registro centralizado de dependencias (`locator.registerLazySingleton`).
+  - Registrar todos los servicios (`Logger`, `PluginManager`, `LocalMusicService`, `ListeningStatsService`, `OfflinePlaylistService`, `ProxyManager`) e inicializarlos en `main()`.
 
 ### 2.2 Descomposición de Archivos Monolíticos
 - [ ] **Dividir `lib/services/audio_service.dart` (~3,100 líneas)**:
@@ -109,12 +110,6 @@ Documento vivo de arquitectura, cambios realizados y planificación para futuras
 - [ ] **Letras Sincronizadas (LRC) en Vivo para Radios**:
   - Al extraer el título y artista del `StreamTitle` de la radio en tiempo real (ej. *"Dua Lipa - Levitating"*), consultar automáticamente `LyricsManager` / LRCLIB para mostrar las letras sincronizadas en vivo de la canción que está sonando en la emisora.
 
-### 3.4 Extracción de Metadatos ID3 para Archivos de Música Local (TagLib)
-- [ ] **Lectura de Etiquetas ID3v1/ID3v2/MP4/FLAC con TagLib FFI**:
-  - Integrar el binding FFI C++ de **TagLib** (`github.com/rRemix/taglib`) para una lectura ultrarrápida de metadatos locales sin sobrecargar el hilo principal.
-  - Extraer automáticamente el **Título real**, **Artista/Cantante/Autor**, **Álbum**, **Año** y **Duración exacta** de cada archivo MP3/M4A/FLAC/WEBM/WAV.
-  - Extraer los bytes de la **Carátula/Cover oficial incrustada** (cuadro APIC/Picture) para renderizarla en las tarjetas, MiniPlayer y pantalla Now Playing.
-
-### 3.5 Respaldo y Persistencia
+### 3.4 Respaldo y Persistencia
 - [ ] **Respaldo Automático en Nube (Google Drive)**:
   - Sincronización transparente de `user.hive` en Google Drive.
