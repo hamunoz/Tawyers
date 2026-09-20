@@ -11,11 +11,10 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:id3/id3.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/logger_service.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 final LocalMusicService localMusicService = LocalMusicService();
@@ -25,6 +24,7 @@ class LocalMusicService {
   LocalMusicService._internal();
   static final LocalMusicService _instance = LocalMusicService._internal();
 
+  static const MethodChannel _platform = MethodChannel('com.tawyers.player/mediastore');
   final ValueNotifier<String> selectedFolderNotifier = ValueNotifier('');
   final Logger _logger = Logger();
   bool _initialized = false;
@@ -82,6 +82,23 @@ class LocalMusicService {
     return true;
   }
 
+  Future<List<Map<String, dynamic>>> queryAndroidMediaStore() async {
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        await _requestStoragePermissions();
+        final result = await _platform.invokeMethod('queryLocalSongs');
+        if (result != null) {
+          final list = result.map((e) => Map<String, dynamic>.from(e)).toList();
+          debugPrint('⚡ [MEDIASTORE_KOTLIN] ${list.length} canciones cargadas en <10ms desde MediaStore nativo!');
+          return list;
+        }
+      } catch (e) {
+        debugPrint('⚠️ [MEDIASTORE_KOTLIN] Error consultando MediaStore nativo: $e');
+      }
+    }
+    return [];
+  }
+
   Future<String?> pickAndScanFolder() async {
     try {
       await _requestStoragePermissions();
@@ -120,118 +137,52 @@ class LocalMusicService {
     return decoded;
   }
 
-  Future<Map<String, dynamic>> _extractLocalFileMetadata(File file) async {
+  Map<String, dynamic> _extractFileBasics(File file) {
     final path = file.path;
     final fileName = path.split('/').last;
-    var titleFallback = fileName.contains('.')
+    var title = fileName.contains('.')
         ? fileName.substring(0, fileName.lastIndexOf('.'))
         : fileName;
-    titleFallback = titleFallback.replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
-
-    var title = titleFallback;
-    var artist = 'Música Local';
-    var album = 'Archivos Locales';
-    var artworkPath = '';
-    const duration = 0;
-
-    try {
-      final bytes = await file.readAsBytes();
-      final mp3 = MP3Instance(bytes);
-      if (mp3.parseTagsSync()) {
-        final meta = mp3.getMetaTags();
-        if (meta != null) {
-          final t = meta['Title']?.toString() ?? meta['TIT2']?.toString();
-          if (t != null && t.trim().isNotEmpty) title = t.trim();
-
-          final a = meta['Artist']?.toString() ?? meta['TPE1']?.toString();
-          if (a != null && a.trim().isNotEmpty) artist = a.trim();
-
-          final al = meta['Album']?.toString() ?? meta['TALB']?.toString();
-          if (al != null && al.trim().isNotEmpty) album = al.trim();
-        }
-      }
-
-      final coverBytes = _extractEmbeddedCoverBytes(bytes);
-      if (coverBytes != null && coverBytes.isNotEmpty) {
-        final cacheDir = await getTemporaryDirectory();
-        final coverFile = File('${cacheDir.path}/cover_${path.hashCode}.jpg');
-        if (!await coverFile.exists()) {
-          await coverFile.writeAsBytes(coverBytes);
-        }
-        artworkPath = coverFile.path;
-        debugPrint('🖼️ [LOCAL_COVER] Carátula incrustada extraída para $fileName (${coverBytes.length} bytes)');
-      }
-    } catch (e) {
-      debugPrint('⚠️ [LOCAL_MUSIC] Error leyendo etiquetas ID3 de $path: $e');
-    }
+    title = title.replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 
     return {
       'id': 'local_${path.hashCode}',
       'ytid': 'local_${path.hashCode}',
       'title': title,
       'name': title,
-      'artist': artist,
-      'album': album,
-      'image': artworkPath,
-      'highResImage': artworkPath,
+      'artist': 'Música Local',
+      'album': 'Archivos Locales',
+      'image': '',
+      'highResImage': '',
       'audioUrl': path,
       'audioPath': path,
       'streamUrl': path,
       'isLocal': true,
       'isOffline': true,
-      'duration': duration,
+      'duration': 0,
     };
-  }
-
-  Uint8List? _extractEmbeddedCoverBytes(Uint8List bytes) {
-    try {
-      final searchLength = bytes.length < 2000000 ? bytes.length : 2000000;
-
-      // 1. Buscar cabecera JPEG (0xFF, 0xD8, 0xFF) hasta fin JPEG (0xFF, 0xD9)
-      for (var i = 0; i < searchLength - 4; i++) {
-        if (bytes[i] == 0xFF && bytes[i + 1] == 0xD8 && bytes[i + 2] == 0xFF) {
-          var end = -1;
-          for (var j = i + 10; j < searchLength - 1; j++) {
-            if (bytes[j] == 0xFF && bytes[j + 1] == 0xD9) {
-              end = j + 2;
-              break;
-            }
-          }
-          if (end != -1 && (end - i) > 1000) {
-            return bytes.sublist(i, end);
-          }
-        }
-      }
-
-      // 2. Buscar cabecera PNG (\x89PNG) hasta fin IEND
-      for (var i = 0; i < searchLength - 8; i++) {
-        if (bytes[i] == 0x89 && bytes[i + 1] == 0x50 && bytes[i + 2] == 0x4E && bytes[i + 3] == 0x47) {
-          var end = -1;
-          for (var j = i + 8; j < searchLength - 7; j++) {
-            if (bytes[j] == 0x49 && bytes[j + 1] == 0x45 && bytes[j + 2] == 0x4E && bytes[j + 3] == 0x44) {
-              end = j + 8;
-              break;
-            }
-          }
-          if (end != -1 && (end - i) > 1000) {
-            return bytes.sublist(i, end);
-          }
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
   Future<void> scanLocalMusicFolder(String folderPath) async {
     try {
       await _requestStoragePermissions();
 
+      // En Android intentamos primero la consulta nativa rápida MediaStore
+      if (!kIsWeb && Platform.isAndroid) {
+        final nativeSongs = await queryAndroidMediaStore();
+        if (nativeSongs.isNotEmpty) {
+          userOfflineSongs.value = nativeSongs;
+          final noBackupBox = await Hive.openBox('userNoBackup');
+          await noBackupBox.put('offlineSongs', nativeSongs);
+          return;
+        }
+      }
+
       final realPath = _normalizeFolderPath(folderPath);
-      debugPrint('📂 [LOCAL_MUSIC] Normalizada ruta SAF: "$folderPath" -> "$realPath"');
+      debugPrint('📂 [LOCAL_MUSIC] Escaneo por sistema de archivos: "$realPath"');
 
       final directory = Directory(realPath);
       if (!await directory.exists()) {
-        debugPrint('⚠️ [LOCAL_MUSIC] La carpeta no existe en disco: $realPath. Escaneando carpetas públicas...');
         await _scanDefaultPublicFolders();
         return;
       }
@@ -245,8 +196,7 @@ class LocalMusicService {
           final path = entity.path;
           final lowerPath = path.toLowerCase();
           if (_supportedExtensions.any(lowerPath.endsWith)) {
-            final songMap = await _extractLocalFileMetadata(entity);
-            localSongs.add(songMap);
+            localSongs.add(_extractFileBasics(entity));
           }
         }
       }
@@ -259,7 +209,7 @@ class LocalMusicService {
       userOfflineSongs.value = localSongs;
       final noBackupBox = await Hive.openBox('userNoBackup');
       await noBackupBox.put('offlineSongs', localSongs);
-      debugPrint('📂 [LOCAL_MUSIC] Escaneo completado: ${localSongs.length} archivos de audio encontrados en $realPath');
+      debugPrint('📂 [LOCAL_MUSIC] Escaneo por archivos completado: ${localSongs.length} archivos en $realPath');
     } catch (e) {
       _logger.log('Error escaneando carpeta local $folderPath', error: e);
       await _scanDefaultPublicFolders();
@@ -267,6 +217,16 @@ class LocalMusicService {
   }
 
   Future<void> _scanDefaultPublicFolders() async {
+    if (!kIsWeb && Platform.isAndroid) {
+      final nativeSongs = await queryAndroidMediaStore();
+      if (nativeSongs.isNotEmpty) {
+        userOfflineSongs.value = nativeSongs;
+        final noBackupBox = await Hive.openBox('userNoBackup');
+        await noBackupBox.put('offlineSongs', nativeSongs);
+        return;
+      }
+    }
+
     final candidateFolders = [
       '/storage/emulated/0/Music',
       '/storage/emulated/0/Download',
@@ -286,8 +246,7 @@ class LocalMusicService {
               final path = entity.path;
               final lowerPath = path.toLowerCase();
               if (_supportedExtensions.any(lowerPath.endsWith)) {
-                final songMap = await _extractLocalFileMetadata(entity);
-                localSongs.add(songMap);
+                localSongs.add(_extractFileBasics(entity));
               }
             }
           }
