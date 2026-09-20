@@ -9,11 +9,13 @@
 
 import 'dart:io';
 
+import 'package:audiotags/audiotags.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/logger_service.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 final LocalMusicService localMusicService = LocalMusicService();
@@ -118,6 +120,70 @@ class LocalMusicService {
     return decoded;
   }
 
+  Future<Map<String, dynamic>> _extractLocalFileMetadata(File file) async {
+    final path = file.path;
+    final fileName = path.split('/').last;
+    var titleFallback = fileName.contains('.')
+        ? fileName.substring(0, fileName.lastIndexOf('.'))
+        : fileName;
+    titleFallback = titleFallback.replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    var title = titleFallback;
+    var artist = 'Música Local';
+    var album = 'Archivos Locales';
+    var artworkPath = '';
+    var duration = 0;
+
+    try {
+      final tag = await AudioTags.read(path);
+      if (tag != null) {
+        if (tag.title != null && tag.title!.trim().isNotEmpty) {
+          title = tag.title!.trim();
+        }
+        if (tag.artist != null && tag.artist!.trim().isNotEmpty) {
+          artist = tag.artist!.trim();
+        }
+        if (tag.album != null && tag.album!.trim().isNotEmpty) {
+          album = tag.album!.trim();
+        }
+        if (tag.duration != null && tag.duration! > 0) {
+          duration = tag.duration!;
+        }
+
+        if (tag.pictures.isNotEmpty) {
+          final pic = tag.pictures.first;
+          if (pic.bytes.isNotEmpty) {
+            final cacheDir = await getTemporaryDirectory();
+            final coverFile = File('${cacheDir.path}/cover_${path.hashCode}.jpg');
+            if (!await coverFile.exists()) {
+              await coverFile.writeAsBytes(pic.bytes);
+            }
+            artworkPath = coverFile.path;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [LOCAL_MUSIC] Error leyendo etiquetas ID3 de $path: $e');
+    }
+
+    return {
+      'id': 'local_${path.hashCode}',
+      'ytid': 'local_${path.hashCode}',
+      'title': title,
+      'name': title,
+      'artist': artist,
+      'album': album,
+      'image': artworkPath,
+      'highResImage': artworkPath,
+      'audioUrl': path,
+      'audioPath': path,
+      'streamUrl': path,
+      'isLocal': true,
+      'isOffline': true,
+      'duration': duration,
+    };
+  }
+
   Future<void> scanLocalMusicFolder(String folderPath) async {
     try {
       await _requestStoragePermissions();
@@ -141,29 +207,8 @@ class LocalMusicService {
           final path = entity.path;
           final lowerPath = path.toLowerCase();
           if (_supportedExtensions.any(lowerPath.endsWith)) {
-            final fileName = path.split('/').last;
-            var title = fileName.contains('.')
-                ? fileName.substring(0, fileName.lastIndexOf('.'))
-                : fileName;
-            // Limpia guiones bajos '_' por espacios limpios
-            title = title.replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
-
-            localSongs.add({
-              'id': 'local_${path.hashCode}',
-              'ytid': 'local_${path.hashCode}',
-              'title': title,
-              'name': title,
-              'artist': 'Música Local',
-              'album': 'Archivos Locales',
-              'image': '',
-              'highResImage': '',
-              'audioUrl': path,
-              'audioPath': path,
-              'streamUrl': path,
-              'isLocal': true,
-              'isOffline': true,
-              'duration': 0,
-            });
+            final songMap = await _extractLocalFileMetadata(entity);
+            localSongs.add(songMap);
           }
         }
       }
@@ -203,29 +248,8 @@ class LocalMusicService {
               final path = entity.path;
               final lowerPath = path.toLowerCase();
               if (_supportedExtensions.any(lowerPath.endsWith)) {
-                final fileName = path.split('/').last;
-                var title = fileName.contains('.')
-                    ? fileName.substring(0, fileName.lastIndexOf('.'))
-                    : fileName;
-                // Limpia guiones bajos '_' por espacios limpios
-                title = title.replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
-
-                localSongs.add({
-                  'id': 'local_${path.hashCode}',
-                  'ytid': 'local_${path.hashCode}',
-                  'title': title,
-                  'name': title,
-                  'artist': 'Música Local',
-                  'album': 'Archivos Locales',
-                  'image': '',
-                  'highResImage': '',
-                  'audioUrl': path,
-                  'audioPath': path,
-                  'streamUrl': path,
-                  'isLocal': true,
-                  'isOffline': true,
-                  'duration': 0,
-                });
+                final songMap = await _extractLocalFileMetadata(entity);
+                localSongs.add(songMap);
               }
             }
           }
