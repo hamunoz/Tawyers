@@ -7,12 +7,13 @@
  *     (at your option) any later version.
  */
 
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:audiotags/audiotags.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:id3/id3.dart';
 import 'package:musify/services/common_services.dart';
 import 'package:musify/services/logger_service.dart';
 import 'package:path_provider/path_provider.dart';
@@ -132,33 +133,37 @@ class LocalMusicService {
     var artist = 'Música Local';
     var album = 'Archivos Locales';
     var artworkPath = '';
-    var duration = 0;
+    const duration = 0;
 
     try {
-      final tag = await AudioTags.read(path);
-      if (tag != null) {
-        if (tag.title != null && tag.title!.trim().isNotEmpty) {
-          title = tag.title!.trim();
-        }
-        if (tag.artist != null && tag.artist!.trim().isNotEmpty) {
-          artist = tag.artist!.trim();
-        }
-        if (tag.album != null && tag.album!.trim().isNotEmpty) {
-          album = tag.album!.trim();
-        }
-        if (tag.duration != null && tag.duration! > 0) {
-          duration = tag.duration!;
-        }
+      final bytes = await file.readAsBytes();
+      final mp3 = MP3Instance(bytes);
+      if (mp3.parseTagsSync()) {
+        final meta = mp3.getMetaTags();
+        if (meta != null) {
+          final t = meta['Title']?.toString() ?? meta['TIT2']?.toString();
+          if (t != null && t.trim().isNotEmpty) title = t.trim();
 
-        if (tag.pictures.isNotEmpty) {
-          final pic = tag.pictures.first;
-          if (pic.bytes.isNotEmpty) {
-            final cacheDir = await getTemporaryDirectory();
-            final coverFile = File('${cacheDir.path}/cover_${path.hashCode}.jpg');
-            if (!await coverFile.exists()) {
-              await coverFile.writeAsBytes(pic.bytes);
+          final a = meta['Artist']?.toString() ?? meta['TPE1']?.toString();
+          if (a != null && a.trim().isNotEmpty) artist = a.trim();
+
+          final al = meta['Album']?.toString() ?? meta['TALB']?.toString();
+          if (al != null && al.trim().isNotEmpty) album = al.trim();
+
+          if (meta['APIC'] is Map) {
+            final apicMap = meta['APIC'] as Map;
+            final base64Str = apicMap['base64']?.toString();
+            if (base64Str != null && base64Str.isNotEmpty) {
+              final imgBytes = base64Decode(base64Str);
+              if (imgBytes.isNotEmpty) {
+                final cacheDir = await getTemporaryDirectory();
+                final coverFile = File('${cacheDir.path}/cover_${path.hashCode}.jpg');
+                if (!await coverFile.exists()) {
+                  await coverFile.writeAsBytes(imgBytes);
+                }
+                artworkPath = coverFile.path;
+              }
             }
-            artworkPath = coverFile.path;
           }
         }
       }
