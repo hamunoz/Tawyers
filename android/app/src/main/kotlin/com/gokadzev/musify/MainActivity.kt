@@ -2,6 +2,7 @@ package com.gokadzev.musify
 
 import android.content.ContentUris
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -60,6 +61,7 @@ class MainActivity : FlutterActivity() {
       MediaStore.Audio.Media.TITLE,
       MediaStore.Audio.Media.ARTIST,
       MediaStore.Audio.Media.ALBUM,
+      MediaStore.Audio.Media.ALBUM_ID,
       MediaStore.Audio.Media.DURATION,
       MediaStore.Audio.Media.DATA
     )
@@ -78,11 +80,13 @@ class MainActivity : FlutterActivity() {
       val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
       val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
       val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+      val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
       val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
       val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
       while (cursor.moveToNext()) {
         val id = cursor.getLong(idCol)
+        val albumId = cursor.getLong(albumIdCol)
         val rawTitle = cursor.getString(titleCol) ?: "Pista Local"
         val rawArtist = cursor.getString(artistCol)
         val artist = if (rawArtist.isNullOrEmpty() || rawArtist == "<unknown>") "Música Local" else rawArtist
@@ -91,6 +95,7 @@ class MainActivity : FlutterActivity() {
         val durationSec = (durationMs / 1000).toInt()
         val dataPath = cursor.getString(dataCol) ?: ""
 
+        val albumArtUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
         val title = rawTitle.replace("_", " ").replace(Regex("\\s+"), " ").trim()
 
         songsList.add(
@@ -102,8 +107,8 @@ class MainActivity : FlutterActivity() {
             "name" to title,
             "artist" to artist,
             "album" to album,
-            "image" to "",
-            "highResImage" to "",
+            "image" to albumArtUri,
+            "highResImage" to albumArtUri,
             "audioUrl" to dataPath,
             "audioPath" to dataPath,
             "streamUrl" to dataPath,

@@ -40,13 +40,11 @@ MediaItem mapToMediaItem(Map song) {
       (isOffline ? offlineSong['artworkPath']?.toString() : null) ??
       '';
 
-  late final Uri artUri;
+  Uri? artUri;
   if (imageStr.startsWith('http://') || imageStr.startsWith('https://')) {
     artUri = Uri.parse(imageStr);
   } else if (imageStr.isNotEmpty && (imageStr.startsWith('/') || imageStr.startsWith('file://'))) {
     artUri = Uri.file(imageStr.replaceFirst('file://', ''));
-  } else {
-    artUri = Uri.file('');
   }
 
   return MediaItem(
