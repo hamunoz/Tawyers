@@ -41,6 +41,7 @@ import 'package:musify/services/playlist_sharing.dart';
 import 'package:musify/services/playlists_manager.dart';
 import 'package:musify/services/plugin_manager.dart';
 import 'package:musify/services/router_service.dart';
+import 'package:musify/services/service_locator.dart';
 import 'package:musify/services/settings_manager.dart';
 import 'package:musify/services/update_manager.dart';
 import 'package:musify/theme/app_themes.dart';
@@ -282,6 +283,7 @@ void main() async {
 
 Future<void> initialisation() async {
   try {
+    await setupServiceLocator();
     await Hive.initFlutter();
 
     await Future.wait([
