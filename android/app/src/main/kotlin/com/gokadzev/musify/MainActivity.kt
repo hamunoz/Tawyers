@@ -12,6 +12,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 class MainActivity : FlutterActivity() {
   private val CHANNEL = "com.tawyers.player/mediastore"
@@ -95,7 +96,7 @@ class MainActivity : FlutterActivity() {
         val durationSec = (durationMs / 1000).toInt()
         val dataPath = cursor.getString(dataCol) ?: ""
 
-        val albumArtUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
+        val coverPath = getAlbumArtworkPath(id, albumId)
         val title = rawTitle.replace("_", " ").replace(Regex("\\s+"), " ").trim()
 
         songsList.add(
@@ -107,8 +108,8 @@ class MainActivity : FlutterActivity() {
             "name" to title,
             "artist" to artist,
             "album" to album,
-            "image" to albumArtUri,
-            "highResImage" to albumArtUri,
+            "image" to coverPath,
+            "highResImage" to coverPath,
             "audioUrl" to dataPath,
             "audioPath" to dataPath,
             "streamUrl" to dataPath,
@@ -121,6 +122,33 @@ class MainActivity : FlutterActivity() {
     }
 
     return songsList
+  }
+
+  private fun getAlbumArtworkPath(songId: Long, albumId: Long): String {
+    try {
+      val coverFile = File(cacheDir, "cover_album_$albumId.jpg")
+      if (coverFile.exists() && coverFile.length() > 0) {
+        return coverFile.absolutePath
+      }
+
+      val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, songId)
+      val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        contentResolver.loadThumbnail(contentUri, Size(300, 300), null)
+      } else {
+        null
+      }
+
+      if (bitmap != null) {
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+        val bytes = stream.toByteArray()
+        coverFile.writeBytes(bytes)
+        return coverFile.absolutePath
+      }
+    } catch (e: Exception) {
+      // Ignore
+    }
+    return ""
   }
 
   private fun getAlbumArtworkBytes(songId: Long): ByteArray? {
