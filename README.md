@@ -5,13 +5,6 @@
 
 
 
-## License
-
-
-See the [GNU General Public License](https://github.com/gokadzev/Musify/blob/master/LICENSE) for full details.
-
----
-
 ## Disclaimer
 
 ```
