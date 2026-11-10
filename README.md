@@ -2,7 +2,12 @@
 
 # Tawyers Player
 
+**M.R.P. — Music. Radio. Play.** <br/>
+*(Música. Radio. Play.)*
 
+🎧 **+Música −Ruido** · *+M −R*
+
+<sub>Basado en [Musify](https://github.com/gokadzev/Musify) de Valeri Gokadze (GPL-3.0).</sub>
 
 
 ## Disclaimer
